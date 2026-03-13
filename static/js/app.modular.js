@@ -322,6 +322,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             const customBanner = ref('');
             const showBanner = ref(true);
 
+            // --- URL Import State ---
+            const urlImportInput = ref('');
+            const urlImportLoading = ref(false);
+            const urlImportError = ref('');
+
+            // --- Upload Confirmation State ---
+            const showUploadConfirmation = ref(false);
+            const pendingUrlImport = ref('');
+
             // --- Audio Recording State ---
             const isRecording = ref(false);
             const mediaRecorder = ref(null);
@@ -572,6 +581,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const useAsrEndpoint = ref(false);
             const connectorSupportsDiarization = ref(false);  // Connector capability for diarization UI
             const connectorSupportsSpeakerCount = ref(false);  // Connector capability for min/max speakers
+            const activeConnectorDisplay = ref('');  // Display name for active transcription provider
             const currentUserName = ref('');
             const canDeleteRecordings = ref(true);
             const enableInternalSharing = ref(false);
@@ -660,6 +670,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 maxConcurrentUploads, recordingDisclaimer, showRecordingDisclaimerModal, pendingRecordingMode,
                 uploadDisclaimer, showUploadDisclaimerModal,
                 customBanner, showBanner,
+                urlImportInput, urlImportLoading, urlImportError,
+                showUploadConfirmation, pendingUrlImport,
                 showAdvancedOptions, uploadLanguage, uploadMinSpeakers, uploadMaxSpeakers, uploadHotwords, uploadInitialPrompt,
                 availableTags, selectedTagIds, uploadTagSearchFilter,
                 availableFolders, selectedFolderId, foldersEnabled, filterFolder,
@@ -740,7 +752,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 openAsrDropdownIndex,
 
                 // App Config
-                useAsrEndpoint, connectorSupportsDiarization, connectorSupportsSpeakerCount, currentUserName, canDeleteRecordings, enableInternalSharing, enableArchiveToggle, showUsernamesInUI,
+                useAsrEndpoint, connectorSupportsDiarization, connectorSupportsSpeakerCount, activeConnectorDisplay, currentUserName, canDeleteRecordings, enableInternalSharing, enableArchiveToggle, showUsernamesInUI,
 
                 // Internal Sharing
                 showUnifiedShareModal, internalShareUserSearch, internalShareSearchResults,
@@ -931,6 +943,35 @@ document.addEventListener('DOMContentLoaded', async () => {
                     parts.push(`${seconds}s`);
                 }
                 return parts.join(' ');
+            };
+
+            // Provider badge display name formatter
+            const formatProviderBadge = (provider, model) => {
+                const names = {
+                    'openai_transcribe': 'OpenAI',
+                    'openai_whisper': 'Whisper',
+                    'asr_endpoint': 'Local ASR',
+                    'azure_openai_transcribe': 'Azure',
+                };
+                const name = names[provider] || provider || '';
+                return model && model !== provider ? `${name} · ${model}` : name;
+            };
+
+            // Estimated cost based on model and token counts
+            const estimatedCost = (recording) => {
+                if (!recording || !recording.transcription_total_tokens) return null;
+                const pricing = {
+                    'gpt-4o-transcribe': { input: 2.50, output: 10.00 },
+                    'gpt-4o-transcribe-diarize': { input: 2.50, output: 10.00 },
+                    'gpt-4o-mini-transcribe': { input: 1.25, output: 5.00 },
+                    'gpt-4o-mini-transcribe-2025-12-15': { input: 1.25, output: 5.00 },
+                };
+                const model = recording.transcription_model || '';
+                const rates = pricing[model];
+                if (!rates) return null;
+                const inputCost = ((recording.transcription_input_tokens || 0) / 1_000_000) * rates.input;
+                const outputCost = ((recording.transcription_output_tokens || 0) / 1_000_000) * rates.output;
+                return (inputCost + outputCost).toFixed(4);
             };
 
             const formatEventDateTime = (dateString, timeOnly = false) => {
@@ -1290,6 +1331,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const cancelUploadDisclaimer = () => {
                 showUploadDisclaimerModal.value = false;
+            };
+
+            // Upload confirmation handlers (provider transparency step)
+            const acceptUploadConfirmation = () => {
+                showUploadConfirmation.value = false;
+                if (pendingUrlImport.value) {
+                    const url = pendingUrlImport.value;
+                    pendingUrlImport.value = '';
+                    uploadComposable.executeUrlImport(url);
+                } else {
+                    uploadComposable.proceedWithUpload();
+                }
+            };
+
+            const cancelUploadConfirmation = () => {
+                showUploadConfirmation.value = false;
+                pendingUrlImport.value = '';
             };
 
             // Add startUpload to utils for audio composable to use
@@ -2302,6 +2360,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         enableIncognitoMode.value = config.enable_incognito_mode === true;
                         foldersEnabled.value = config.enable_folders === true;
                         maxConcurrentUploads.value = config.max_concurrent_uploads || 3;
+                        activeConnectorDisplay.value = config.active_connector_display || '';
 
                         // Restore saved folder selection from localStorage
                         if (foldersEnabled.value) {
@@ -2508,6 +2567,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 customBannerHtml,
                 acceptUploadDisclaimer,
                 cancelUploadDisclaimer,
+                acceptUploadConfirmation,
+                cancelUploadConfirmation,
+                formatProviderBadge,
+                estimatedCost,
                 getTagPromptPreview,
 
                 // Utilities

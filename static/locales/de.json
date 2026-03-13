@@ -1496,7 +1496,42 @@
     "uploadNFiles": "Upload {{count}} File(s)",
     "uploadProgress": "Upload-Fortschritt",
     "videoRetained": "Video für Wiedergabe beibehalten",
-    "willAutoSummarize": "Wird nach der Transkription automatisch zusammengefasst"
+    "willAutoSummarize": "Wird nach der Transkription automatisch zusammengefasst",
+    "confirmTitle": "Transkription Bestätigen",
+    "confirmMessage": "Diese Aufnahme wird mit folgendem Anbieter transkribiert:",
+    "confirmProceed": "Fortfahren",
+    "confirmCancel": "Abbrechen"
+  },
+  "stats": {
+    "processingStats": "Verarbeitungsstatistiken",
+    "provider": "Anbieter",
+    "transcriptionTime": "Transkriptionszeit",
+    "summarizationTime": "Zusammenfassungszeit",
+    "totalProcessingTime": "Gesamtverarbeitungszeit",
+    "inputTokens": "Eingabe-Token",
+    "outputTokens": "Ausgabe-Token",
+    "totalTokens": "Gesamt-Token",
+    "estimatedCost": "Geschätzte Kosten"
+  },
+  "provider": {
+    "title": "Transkriptionsanbieter",
+    "selectProvider": "Anbieter Auswählen",
+    "apiKey": "API-Schlüssel",
+    "model": "Modell",
+    "baseUrl": "Basis-URL",
+    "asrBaseUrl": "ASR Basis-URL",
+    "save": "Einstellungen Speichern",
+    "settingsSaved": "Anbietereinstellungen erfolgreich gespeichert",
+    "currentProvider": "Aktueller Anbieter",
+    "dbOverrideActive": "Datenbankeinstellungen verwenden (.env wird überschrieben)"
+  },
+  "urlImport": {
+    "import": "Importieren",
+    "importStarted": "URL-Import gestartet — Transkription beginnt in Kürze",
+    "importing": "Importiere...",
+    "placeholder": "Video- oder Audio-URL einfügen",
+    "supportedSites": "Unterstützt YouTube, Vimeo und viele andere Seiten",
+    "title": "Von URL importieren"
   },
   "uploadProgress": {
     "title": "Upload-Fortschritt"

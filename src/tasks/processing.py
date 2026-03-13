@@ -1345,7 +1345,10 @@ def transcribe_chunks_with_connector(connector, filepath, filename, mime_type, l
                             'transcription': response.text,
                             'filename': chunk['filename'],
                             'segments': response.segments if use_diarization else None,
-                            'speakers': response.speakers if use_diarization else None
+                            'speakers': response.speakers if use_diarization else None,
+                            'input_tokens': getattr(response, 'input_tokens', None),
+                            'output_tokens': getattr(response, 'output_tokens', None),
+                            'total_tokens': getattr(response, 'total_tokens', None),
                         }
                         chunk_results.append(chunk_result)
                         current_app.logger.info(f"Chunk {i+1} transcribed successfully: {len(response.text)} characters")
@@ -1389,6 +1392,11 @@ def transcribe_chunks_with_connector(connector, filepath, filename, mime_type, l
 
                 current_app.logger.info(f"Merged diarization: {len(merged_segments)} segments, {len(all_speakers)} speakers: {all_speakers}")
 
+                # Sum token counts across chunks
+                total_input = sum(cr.get('input_tokens') or 0 for cr in chunk_results) or None
+                total_output = sum(cr.get('output_tokens') or 0 for cr in chunk_results) or None
+                total_tokens = sum(cr.get('total_tokens') or 0 for cr in chunk_results) or None
+
                 # Return a TranscriptionResponse so segments are preserved
                 from src.services.transcription import TranscriptionResponse
                 return TranscriptionResponse(
@@ -1396,7 +1404,10 @@ def transcribe_chunks_with_connector(connector, filepath, filename, mime_type, l
                     segments=merged_segments,
                     speakers=all_speakers,
                     provider=connector.PROVIDER_NAME,
-                    model=getattr(connector, 'model', 'unknown')
+                    model=getattr(connector, 'model', 'unknown'),
+                    input_tokens=total_input,
+                    output_tokens=total_output,
+                    total_tokens=total_tokens,
                 )
             else:
                 merged_transcription = chunking_service.merge_transcriptions(chunk_results)
@@ -1407,7 +1418,21 @@ def transcribe_chunks_with_connector(connector, filepath, filename, mime_type, l
                 # Log statistics
                 chunking_service.log_processing_statistics(chunk_results)
 
-                return merged_transcription
+                # Sum token counts across chunks
+                total_input = sum(cr.get('input_tokens') or 0 for cr in chunk_results) or None
+                total_output = sum(cr.get('output_tokens') or 0 for cr in chunk_results) or None
+                total_tokens = sum(cr.get('total_tokens') or 0 for cr in chunk_results) or None
+
+                # Return a TranscriptionResponse with token info
+                from src.services.transcription import TranscriptionResponse
+                return TranscriptionResponse(
+                    text=merged_transcription,
+                    provider=connector.PROVIDER_NAME,
+                    model=getattr(connector, 'model', 'unknown'),
+                    input_tokens=total_input,
+                    output_tokens=total_output,
+                    total_tokens=total_tokens,
+                )
 
         except Exception as e:
             current_app.logger.error(f"Chunking transcription failed for {filepath}: {e}")
@@ -1625,6 +1650,9 @@ def transcribe_with_connector(app_context, recording_id, filepath, original_file
                     should_chunk = False
                     current_app.logger.warning("Chunking service is disabled (ENABLE_CHUNKING=false or service not initialized)")
 
+            # Track the transcription response for storing provider/token metadata
+            transcription_response = None
+
             # Retry loop for handling format/codec errors with MP3 conversion
             max_attempts = 2
             last_error = None
@@ -1646,11 +1674,13 @@ def transcribe_with_connector(app_context, recording_id, filepath, original_file
                         if hasattr(chunk_result, 'segments') and chunk_result.segments and chunk_result.has_diarization():
                             # Diarized response - store with segments for click-to-seek and speaker identification
                             recording.transcription = chunk_result.to_storage_format()
+                            transcription_response = chunk_result
                             current_app.logger.info(f"Chunked diarized transcription completed: {len(chunk_result.text)} characters, {len(chunk_result.segments)} segments")
                         else:
                             # Plain text response
                             transcription_text = chunk_result.text if hasattr(chunk_result, 'text') else chunk_result
                             recording.transcription = transcription_text
+                            transcription_response = chunk_result if hasattr(chunk_result, 'input_tokens') else None
                             current_app.logger.info(f"Chunked transcription completed: {len(transcription_text)} characters")
                     else:
                         # Build the transcription request for single file
@@ -1685,6 +1715,8 @@ def transcribe_with_connector(app_context, recording_id, filepath, original_file
                         if response.speaker_embeddings:
                             recording.speaker_embeddings = response.speaker_embeddings
                             current_app.logger.info(f"Stored speaker embeddings for speakers: {list(response.speaker_embeddings.keys())}")
+
+                        transcription_response = response
 
                     # If we reach here, transcription succeeded
                     break
@@ -1754,6 +1786,15 @@ def transcribe_with_connector(app_context, recording_id, filepath, original_file
             # Calculate and save transcription duration
             transcription_end_time = time.time()
             recording.transcription_duration_seconds = int(transcription_end_time - transcription_start_time)
+
+            # Store transcription provider and token usage metadata
+            recording.transcription_provider = connector.PROVIDER_NAME
+            recording.transcription_model = getattr(connector, 'model', '') or connector.PROVIDER_NAME
+            if transcription_response is not None:
+                recording.transcription_input_tokens = getattr(transcription_response, 'input_tokens', None)
+                recording.transcription_output_tokens = getattr(transcription_response, 'output_tokens', None)
+                recording.transcription_total_tokens = getattr(transcription_response, 'total_tokens', None)
+
             db.session.commit()
             current_app.logger.info(f"Transcription completed in {recording.transcription_duration_seconds}s")
 

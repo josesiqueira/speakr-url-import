@@ -112,6 +112,11 @@ class TranscriptionResponse:
     # Raw response for debugging
     raw_response: Optional[Dict[str, Any]] = None
 
+    # Token usage
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+
     def to_storage_format(self) -> str:
         """
         Convert to the JSON format used for storage in database.

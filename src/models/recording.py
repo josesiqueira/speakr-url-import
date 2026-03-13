@@ -50,6 +50,13 @@ class Recording(db.Model):
     # Speaker embeddings from diarization (JSON dict mapping speaker IDs to 256-dimensional vectors)
     speaker_embeddings = db.Column(db.JSON, nullable=True)
 
+    # Transcription provider metadata
+    transcription_provider = db.Column(db.String(100), nullable=True)   # e.g. "openai_transcribe"
+    transcription_model = db.Column(db.String(100), nullable=True)      # e.g. "gpt-4o-transcribe-diarize"
+    transcription_input_tokens = db.Column(db.Integer, nullable=True)
+    transcription_output_tokens = db.Column(db.Integer, nullable=True)
+    transcription_total_tokens = db.Column(db.Integer, nullable=True)
+
     # Folder relationship (one-to-many: a recording belongs to at most one folder)
     folder_id = db.Column(db.Integer, db.ForeignKey('folder.id', ondelete='SET NULL'), nullable=True, index=True)
 
@@ -225,6 +232,8 @@ class Recording(db.Model):
             'folder_id': self.folder_id,
             'folder': self.folder.to_dict() if self.folder else None,
             'tags': [tag.to_dict() for tag in visible_tags] if visible_tags else [],
+            'transcription_provider': self.transcription_provider,
+            'transcription_model': self.transcription_model,
             'duplicate_info': self.get_duplicate_info(),
             'shared_with_count': shared_with_count,
             'public_share_count': public_share_count
@@ -285,6 +294,11 @@ class Recording(db.Model):
             'folder': self.folder.to_dict() if self.folder else None,
             'tags': [tag.to_dict() for tag in visible_tags] if visible_tags else [],
             'events': [event.to_dict() for event in self.events] if self.events else [],
+            'transcription_provider': self.transcription_provider,
+            'transcription_model': self.transcription_model,
+            'transcription_input_tokens': self.transcription_input_tokens,
+            'transcription_output_tokens': self.transcription_output_tokens,
+            'transcription_total_tokens': self.transcription_total_tokens,
             'duplicate_info': self.get_duplicate_info(),
             'shared_with_count': shared_with_count,
             'public_share_count': public_share_count

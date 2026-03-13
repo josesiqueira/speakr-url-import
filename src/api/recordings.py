@@ -2170,6 +2170,20 @@ def upload_file():
             meeting_date = now
             current_app.logger.debug("No file date available, using current time")
 
+        # Get intended transcription provider for badge display before processing starts
+        intended_provider = None
+        intended_model = None
+        if USE_NEW_TRANSCRIPTION_ARCHITECTURE:
+            try:
+                from src.services.transcription import get_registry
+                _reg = get_registry()
+                _conn = _reg.get_active_connector()
+                if _conn:
+                    intended_provider = _conn.PROVIDER_NAME
+                    intended_model = getattr(_conn, 'model', '') or _conn.PROVIDER_NAME
+            except Exception:
+                pass
+
         recording = Recording(
             audio_path=filepath,
             original_filename=original_filename,
@@ -2182,7 +2196,9 @@ def upload_file():
             notes=notes,
             folder_id=selected_folder.id if selected_folder else None,
             processing_source='upload',  # Track that this was manually uploaded
-            file_hash=file_hash
+            file_hash=file_hash,
+            transcription_provider=intended_provider,
+            transcription_model=intended_model,
         )
         db.session.add(recording)
         db.session.commit()
@@ -2241,6 +2257,352 @@ def upload_file():
         db.session.rollback()
         current_app.logger.error(f"Error during file upload: {e}", exc_info=True)
         return jsonify({'error': 'An unexpected error occurred during upload.'}), 500
+
+
+@recordings_bp.route('/api/recordings/import-url', methods=['POST'])
+@login_required
+def import_url():
+    """
+    Import audio from a URL (YouTube, Vimeo, etc.) using yt-dlp.
+    Downloads the audio and feeds it into the normal transcription pipeline.
+    """
+    import glob as _glob
+    import yt_dlp
+
+    filepath = None  # Track for cleanup on error
+
+    try:
+        data = request.get_json()
+        if not data or not data.get('url', '').strip():
+            return jsonify({'error': 'No URL provided'}), 400
+
+        url = data['url'].strip()
+
+        # Validate URL scheme to prevent SSRF
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        if parsed.scheme not in ('http', 'https'):
+            return jsonify({'error': 'Only HTTP and HTTPS URLs are supported'}), 400
+        if not parsed.netloc:
+            return jsonify({'error': 'Invalid URL'}), 400
+
+        current_app.logger.info(f"URL import requested by user {current_user.id}: {url}")
+
+        # Extract optional parameters
+        language = data.get('language', '')
+        min_speakers = data.get('min_speakers') or None
+        max_speakers = data.get('max_speakers') or None
+        hotwords = data.get('hotwords', '').strip() or None
+        initial_prompt = data.get('initial_prompt', '').strip() or None
+        tag_ids = data.get('tag_ids', [])
+        folder_id = data.get('folder_id')
+
+        # Convert speaker counts to int
+        if min_speakers:
+            try:
+                min_speakers = int(min_speakers)
+            except (ValueError, TypeError):
+                min_speakers = None
+        if max_speakers:
+            try:
+                max_speakers = int(max_speakers)
+            except (ValueError, TypeError):
+                max_speakers = None
+
+        # Download audio using yt-dlp
+        upload_folder = current_app.config['UPLOAD_FOLDER']
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        file_prefix = f'{timestamp}_url_import'
+        outtmpl = os.path.join(upload_folder, f'{file_prefix}.%(ext)s')
+
+        # Enforce download size limit consistent with upload limits
+        max_content_length = current_app.config.get('MAX_CONTENT_LENGTH')
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': outtmpl,
+            'quiet': True,
+            'no_warnings': True,
+            'noplaylist': True,
+            'socket_timeout': 30,
+        }
+        if max_content_length:
+            ydl_opts['max_filesize'] = max_content_length
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                filepath = ydl.prepare_filename(info)
+                video_title = info.get('title', 'URL Import')
+                upload_date = info.get('upload_date')  # YYYYMMDD string
+        except yt_dlp.utils.DownloadError as e:
+            current_app.logger.error(f"yt-dlp download failed for {url}: {e}")
+            return jsonify({'error': 'Failed to download from this URL. Please check that the URL is valid and publicly accessible.'}), 400
+        except Exception as e:
+            current_app.logger.error(f"yt-dlp error for {url}: {e}", exc_info=True)
+            return jsonify({'error': 'An unexpected error occurred while downloading from the URL.'}), 500
+
+        # Robustly find the downloaded file (prepare_filename may not match actual extension)
+        if not os.path.exists(filepath):
+            matches = _glob.glob(os.path.join(upload_folder, f'{file_prefix}.*'))
+            if matches:
+                filepath = matches[0]
+                current_app.logger.info(f"prepare_filename mismatch, found actual file: {filepath}")
+            else:
+                return jsonify({'error': 'Download completed but file not found'}), 500
+
+        # Sanitize the title for use as original_filename
+        safe_title = secure_filename(video_title) or 'url_import'
+        file_ext = filepath.rsplit('.', 1)[-1] if '.' in filepath else 'unknown'
+        original_filename = f"{safe_title}.{file_ext}"
+        current_app.logger.info(f"URL import downloaded: {filepath} (title: {video_title})")
+
+        # --- From here, follow the same pipeline as upload_file() ---
+
+        # Compute file hash for duplicate detection
+        file_hash = None
+        duplicate_warning = None
+        try:
+            file_hash = compute_file_sha256(filepath)
+            existing = Recording.query.filter_by(
+                user_id=current_user.id, file_hash=file_hash
+            ).first()
+            if existing:
+                duplicate_warning = {
+                    'existing_recording_id': existing.id,
+                    'existing_title': existing.title,
+                    'existing_created_at': existing.created_at.isoformat() if existing.created_at else None
+                }
+        except Exception as e:
+            current_app.logger.warning(f"Could not compute file hash: {e}")
+
+        # Get connector specs for chunking decisions
+        connector_specs = None
+        if USE_NEW_TRANSCRIPTION_ARCHITECTURE:
+            try:
+                from src.services.transcription import get_registry
+                registry = get_registry()
+                connector = registry.get_active_connector()
+                if connector:
+                    connector_specs = connector.specifications
+            except Exception as e:
+                current_app.logger.warning(f"Could not get connector specs: {e}")
+
+        # Check if chunking is needed
+        needs_chunking_for_processing = bool(
+            chunking_service and
+            chunking_service.needs_chunking(filepath, USE_ASR_ENDPOINT, connector_specs)
+        )
+
+        # Probe codec info
+        file_size_mb = os.path.getsize(filepath) / (1024 * 1024)
+        probe_timeout = max(10, min(60, int(file_size_mb / 10)))
+        codec_info = None
+        try:
+            codec_info = get_codec_info(filepath, timeout=probe_timeout)
+        except FFProbeError as e:
+            current_app.logger.warning(f"Failed to probe downloaded file: {e}")
+
+        # Video retention/passthrough: skip conversion for videos
+        has_video = codec_info.get('has_video', False) if codec_info else False
+
+        # Fallback: if probe failed, check file extension (mirrors upload_file logic)
+        if codec_info is None and (VIDEO_RETENTION or VIDEO_PASSTHROUGH_ASR) and not has_video:
+            video_extensions = {'.mp4', '.mov', '.mkv', '.avi', '.webm', '.m4v', '.wmv', '.flv', '.ts', '.mts'}
+            file_ext_check = os.path.splitext(filepath)[1].lower()
+            if file_ext_check in video_extensions:
+                has_video = True
+                current_app.logger.info(
+                    f"Probe failed but extension '{file_ext_check}' indicates video — "
+                    f"treating as video for {'VIDEO_PASSTHROUGH_ASR' if VIDEO_PASSTHROUGH_ASR else 'VIDEO_RETENTION'}"
+                )
+
+        if (VIDEO_RETENTION or VIDEO_PASSTHROUGH_ASR) and has_video:
+            current_app.logger.info("Video retention/passthrough: keeping original")
+        else:
+            try:
+                result = convert_if_needed(
+                    filepath,
+                    original_filename=original_filename,
+                    codec_info=codec_info,
+                    needs_chunking=needs_chunking_for_processing,
+                    is_asr_endpoint=USE_ASR_ENDPOINT,
+                    delete_original=True,
+                    connector_specs=connector_specs
+                )
+                filepath = result.output_path
+                if result.was_converted:
+                    current_app.logger.info(f"Converted: {result.original_codec} -> {result.final_codec}")
+                if result.was_compressed:
+                    current_app.logger.info(f"Compressed: {result.size_reduction_percent:.1f}% reduction")
+            except FFmpegNotFoundError as e:
+                current_app.logger.error(f"FFmpeg not found: {e}")
+                _cleanup_file(filepath)
+                return jsonify({'error': 'Audio conversion tool (FFmpeg) not found on server.'}), 500
+            except FFmpegError as e:
+                current_app.logger.error(f"FFmpeg conversion failed: {e}")
+                _cleanup_file(filepath)
+                return jsonify({'error': f'Failed to convert audio: {str(e)}'}), 500
+
+        final_file_size = os.path.getsize(filepath)
+        mime_type, _ = mimetypes.guess_type(filepath)
+
+        # Resolve tags
+        selected_tags = []
+        for tag_id in tag_ids:
+            tag = Tag.query.filter_by(id=tag_id).first()
+            if tag and (tag.user_id == current_user.id or (tag.group_id and GroupMembership.query.filter_by(group_id=tag.group_id, user_id=current_user.id).first())):
+                selected_tags.append(tag)
+
+        # Resolve folder
+        selected_folder = None
+        if folder_id:
+            folder = Folder.query.filter_by(id=folder_id).first()
+            if folder and (folder.user_id == current_user.id or (folder.group_id and GroupMembership.query.filter_by(group_id=folder.group_id, user_id=current_user.id).first())):
+                selected_folder = folder
+
+        # Apply defaults hierarchy: user input > tag defaults > folder defaults > env > user defaults
+        if selected_folder and not selected_tags:
+            if not language and selected_folder.default_language:
+                language = selected_folder.default_language
+            if min_speakers is None and selected_folder.default_min_speakers:
+                min_speakers = selected_folder.default_min_speakers
+            if max_speakers is None and selected_folder.default_max_speakers:
+                max_speakers = selected_folder.default_max_speakers
+            if not hotwords and selected_folder.default_hotwords:
+                hotwords = selected_folder.default_hotwords
+            if not initial_prompt and selected_folder.default_initial_prompt:
+                initial_prompt = selected_folder.default_initial_prompt
+
+        if selected_tags:
+            first_tag = selected_tags[0]
+            if not language and first_tag.default_language:
+                language = first_tag.default_language
+            if min_speakers is None and first_tag.default_min_speakers:
+                min_speakers = first_tag.default_min_speakers
+            if max_speakers is None and first_tag.default_max_speakers:
+                max_speakers = first_tag.default_max_speakers
+            if not hotwords and first_tag.default_hotwords:
+                hotwords = first_tag.default_hotwords
+            if not initial_prompt and first_tag.default_initial_prompt:
+                initial_prompt = first_tag.default_initial_prompt
+
+        if min_speakers is None and ASR_MIN_SPEAKERS:
+            try:
+                min_speakers = int(ASR_MIN_SPEAKERS)
+            except (ValueError, TypeError):
+                min_speakers = None
+        if max_speakers is None and ASR_MAX_SPEAKERS:
+            try:
+                max_speakers = int(ASR_MAX_SPEAKERS)
+            except (ValueError, TypeError):
+                max_speakers = None
+
+        if not language and current_user.transcription_language:
+            language = current_user.transcription_language
+        if not hotwords and current_user.transcription_hotwords:
+            hotwords = current_user.transcription_hotwords
+        if not initial_prompt and current_user.transcription_initial_prompt:
+            initial_prompt = current_user.transcription_initial_prompt
+
+        # Determine meeting_date from yt-dlp upload_date or file metadata
+        meeting_date = None
+        if upload_date:
+            try:
+                meeting_date = datetime.strptime(upload_date, '%Y%m%d')
+                current_app.logger.info(f"Using video upload date: {meeting_date}")
+            except (ValueError, TypeError):
+                pass
+        if not meeting_date:
+            meeting_date = get_creation_date(filepath, use_file_mtime=False)
+        if not meeting_date:
+            meeting_date = datetime.utcnow()
+
+        # Get intended transcription provider for badge display before processing starts
+        intended_provider = None
+        intended_model = None
+        if USE_NEW_TRANSCRIPTION_ARCHITECTURE:
+            try:
+                from src.services.transcription import get_registry
+                _reg = get_registry()
+                _conn = _reg.get_active_connector()
+                if _conn:
+                    intended_provider = _conn.PROVIDER_NAME
+                    intended_model = getattr(_conn, 'model', '') or _conn.PROVIDER_NAME
+            except Exception:
+                pass
+
+        # Create recording
+        recording = Recording(
+            audio_path=filepath,
+            original_filename=original_filename,
+            title=f"Recording - {video_title}",
+            file_size=final_file_size,
+            status='PENDING',
+            meeting_date=meeting_date,
+            user_id=current_user.id,
+            mime_type=mime_type,
+            folder_id=selected_folder.id if selected_folder else None,
+            processing_source='url_import',
+            file_hash=file_hash,
+            transcription_provider=intended_provider,
+            transcription_model=intended_model,
+        )
+        db.session.add(recording)
+        db.session.commit()
+
+        # Add tags
+        for order, tag in enumerate(selected_tags, 1):
+            db.session.add(RecordingTag(
+                recording_id=recording.id,
+                tag_id=tag.id,
+                order=order,
+                added_at=datetime.utcnow()
+            ))
+        if selected_tags:
+            db.session.commit()
+
+        current_app.logger.info(f"URL import recording created with ID: {recording.id}")
+
+        # Queue transcription job
+        first_tag = selected_tags[0] if selected_tags else None
+        job_params = {
+            'language': language,
+            'min_speakers': min_speakers,
+            'max_speakers': max_speakers,
+            'tag_id': first_tag.id if first_tag else None,
+            'hotwords': hotwords,
+            'initial_prompt': initial_prompt,
+        }
+
+        job_queue.enqueue(
+            user_id=current_user.id,
+            recording_id=recording.id,
+            job_type='transcribe',
+            params=job_params,
+            is_new_upload=True
+        )
+        current_app.logger.info(f"Transcription job queued for URL import recording {recording.id}")
+
+        response_data = recording.to_dict(viewer_user=current_user)
+        if duplicate_warning:
+            response_data['duplicate_warning'] = duplicate_warning
+        return jsonify(response_data), 202
+
+    except Exception as e:
+        db.session.rollback()
+        _cleanup_file(filepath)
+        current_app.logger.error(f"Error during URL import: {e}", exc_info=True)
+        return jsonify({'error': 'An unexpected error occurred during URL import.'}), 500
+
+
+def _cleanup_file(filepath):
+    """Remove a file from disk if it exists, logging any errors."""
+    if filepath:
+        try:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+        except OSError:
+            pass
 
 
 @recordings_bp.route('/api/recordings/incognito', methods=['POST'])

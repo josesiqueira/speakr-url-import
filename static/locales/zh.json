@@ -1647,7 +1647,42 @@
     "uploadNFiles": "Upload {{count}} File(s)",
     "uploadProgress": "上传进度",
     "videoRetained": "视频已保留供播放",
-    "willAutoSummarize": "转录后将自动生成摘要"
+    "willAutoSummarize": "转录后将自动生成摘要",
+    "confirmTitle": "确认转录",
+    "confirmMessage": "此录音将使用以下提供商进行转录：",
+    "confirmProceed": "继续",
+    "confirmCancel": "取消"
+  },
+  "stats": {
+    "processingStats": "处理统计",
+    "provider": "提供商",
+    "transcriptionTime": "转录时间",
+    "summarizationTime": "摘要时间",
+    "totalProcessingTime": "总处理时间",
+    "inputTokens": "输入令牌",
+    "outputTokens": "输出令牌",
+    "totalTokens": "总令牌",
+    "estimatedCost": "预估费用"
+  },
+  "provider": {
+    "title": "转录提供商",
+    "selectProvider": "选择提供商",
+    "apiKey": "API 密钥",
+    "model": "模型",
+    "baseUrl": "基础 URL",
+    "asrBaseUrl": "ASR 基础 URL",
+    "save": "保存设置",
+    "settingsSaved": "提供商设置已成功保存",
+    "currentProvider": "当前提供商",
+    "dbOverrideActive": "使用数据库设置（覆盖 .env）"
+  },
+  "urlImport": {
+    "import": "导入",
+    "importStarted": "URL 导入已开始 - 转录即将开始",
+    "importing": "导入中...",
+    "placeholder": "粘贴视频或音频网址",
+    "supportedSites": "支持 YouTube、Vimeo 及许多其他网站",
+    "title": "从 URL 导入"
   },
   "uploadProgress": {
     "title": "上传进度"

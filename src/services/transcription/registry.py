@@ -177,6 +177,36 @@ class ConnectorRegistry:
             logger.error(f"Failed to initialize connector '{connector_name}': {e}")
             raise ConfigurationError(f"Failed to initialize connector '{connector_name}': {e}") from e
 
+    def initialize_from_db_or_env(self) -> BaseTranscriptionConnector:
+        """Initialize the active connector, checking database settings first."""
+        try:
+            from src.models import SystemSetting
+
+            db_connector = SystemSetting.get_setting('transcription_connector', None)
+            db_model = SystemSetting.get_setting('transcription_model', None)
+            db_api_key = SystemSetting.get_setting('transcription_api_key', None)
+            db_base_url = SystemSetting.get_setting('transcription_base_url', None)
+            db_asr_base_url = SystemSetting.get_setting('asr_base_url', None)
+
+            if db_connector or db_model or db_api_key:
+                if db_connector:
+                    os.environ['TRANSCRIPTION_CONNECTOR'] = db_connector
+                if db_model:
+                    os.environ['TRANSCRIPTION_MODEL'] = db_model
+                if db_api_key:
+                    os.environ['TRANSCRIPTION_API_KEY'] = db_api_key
+                if db_base_url:
+                    os.environ['TRANSCRIPTION_BASE_URL'] = db_base_url
+                if db_asr_base_url:
+                    os.environ['ASR_BASE_URL'] = db_asr_base_url
+
+                logger.info(f"Applied DB-configured transcription settings (connector={db_connector}, model={db_model})")
+        except Exception as e:
+            logger.debug(f"Could not read DB settings (may be during startup): {e}")
+
+        return self.initialize_from_env()
+
+
     def _get_asr_timeout(self) -> int:
         """
         Get ASR timeout with fallback chain: ENV -> Admin UI -> default.
@@ -282,33 +312,33 @@ class ConnectorRegistry:
         """
         Get the currently active connector.
 
-        Initializes from environment if not already initialized.
+        Initializes from database settings or environment if not already initialized.
 
         Returns:
             The active connector
         """
         if not self._active_connector:
-            self.initialize_from_env()
+            self.initialize_from_db_or_env()
         return self._active_connector
 
     def get_active_connector_name(self) -> str:
         """Get the name of the currently active connector."""
         if not self._active_connector:
-            self.initialize_from_env()
+            self.initialize_from_db_or_env()
         return self._connector_name
 
     def reinitialize(self) -> BaseTranscriptionConnector:
         """
         Force re-initialization of the connector.
 
-        Useful when environment variables have changed.
+        Useful when environment variables or database settings have changed.
 
         Returns:
             The newly initialized connector
         """
         self._active_connector = None
         self._connector_name = ""
-        return self.initialize_from_env()
+        return self.initialize_from_db_or_env()
 
 
 # Global registry instance

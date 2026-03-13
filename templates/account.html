@@ -471,6 +471,11 @@
                         <a href="#" id="tab-tokens" class="inline-flex items-center whitespace-nowrap py-1 px-1.5 sm:py-3 sm:px-3 border-b-2 font-medium text-xs sm:text-sm border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:border-[var(--border-secondary)] rounded-t-md sm:rounded-t-lg hover:bg-[var(--bg-tertiary)]">
                             <i class="fas fa-key mr-0.5 sm:mr-2 text-xs sm:text-sm"></i><span data-i18n="accountTabs.apiTokens">API Tokens</span>
                         </a>
+                        {% if current_user.is_admin %}
+                        <a href="#" id="tab-providers" class="inline-flex items-center whitespace-nowrap py-1 px-1.5 sm:py-3 sm:px-3 border-b-2 font-medium text-xs sm:text-sm border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:border-[var(--border-secondary)] rounded-t-md sm:rounded-t-lg hover:bg-[var(--bg-tertiary)]">
+                            <i class="fas fa-microchip mr-0.5 sm:mr-2 text-xs sm:text-sm"></i><span data-i18n="provider.title">Transcription Provider</span>
+                        </a>
+                        {% endif %}
                         <a href="#" id="tab-about" class="inline-flex items-center whitespace-nowrap py-1 px-1.5 sm:py-3 sm:px-3 border-b-2 font-medium text-xs sm:text-sm border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:border-[var(--border-secondary)] rounded-t-md sm:rounded-t-lg hover:bg-[var(--bg-tertiary)]">
                             <i class="fas fa-info-circle mr-0.5 sm:mr-2 text-xs sm:text-sm"></i><span data-i18n="accountTabs.about">About</span>
                         </a>
@@ -1477,6 +1482,80 @@ curl "https://your-speakr-instance.com/api/recordings?token=YOUR_TOKEN_HERE"</co
                             </div>
                         </div>
                     </div>
+
+                    {% if current_user.is_admin %}
+                    <div id="content-providers" class="hidden tab-content pt-6">
+                        <h2 class="text-2xl font-semibold text-[var(--text-primary)] mb-6" data-i18n="provider.title">Transcription Provider</h2>
+
+                        <!-- Current Provider Status -->
+                        <div class="mb-6">
+                            <div class="bg-[var(--bg-tertiary)] p-4 rounded-lg border border-[var(--border-primary)]">
+                                <div class="flex items-center gap-3 mb-3">
+                                    <i class="fas fa-microchip text-[var(--text-accent)]"></i>
+                                    <h3 class="text-lg font-medium text-[var(--text-secondary)]" data-i18n="provider.currentProvider">Current Provider</h3>
+                                </div>
+                                <div id="currentProviderDisplay" class="text-sm text-[var(--text-muted)]">Loading...</div>
+                                <div id="dbOverrideNotice" class="hidden mt-2 text-xs text-amber-600 dark:text-amber-400">
+                                    <i class="fas fa-database mr-1"></i>
+                                    <span data-i18n="provider.dbOverrideActive">Using database settings (overriding .env)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Provider Settings Form -->
+                        <div class="mb-6">
+                            <h3 class="text-lg font-medium text-[var(--text-secondary)] mb-2" data-i18n="provider.selectProvider">Select Provider</h3>
+                            <div class="bg-[var(--bg-tertiary)] p-4 rounded-lg border border-[var(--border-primary)] space-y-4">
+                                <!-- Connector Type -->
+                                <div>
+                                    <label for="providerConnector" class="block text-sm font-medium text-[var(--text-muted)]" data-i18n="provider.selectProvider">Select Provider</label>
+                                    <select id="providerConnector" class="mt-1 block w-full px-3 py-2 border border-[var(--border-secondary)] rounded-md shadow-sm focus:outline-none focus:ring-[var(--border-focus)] focus:border-[var(--border-focus)] sm:text-sm bg-[var(--bg-input)] text-[var(--text-primary)]">
+                                        <option value="">-- Keep current (.env) --</option>
+                                        <option value="openai_transcribe">OpenAI Transcribe</option>
+                                        <option value="openai_whisper">OpenAI Whisper</option>
+                                        <option value="asr_endpoint">Local ASR Endpoint</option>
+                                        <option value="azure_openai_transcribe">Azure OpenAI</option>
+                                    </select>
+                                </div>
+
+                                <!-- API Key -->
+                                <div>
+                                    <label for="providerApiKey" class="block text-sm font-medium text-[var(--text-muted)]" data-i18n="provider.apiKey">API Key</label>
+                                    <div class="relative">
+                                        <input type="password" id="providerApiKey" class="mt-1 block w-full px-3 py-2 pr-10 border border-[var(--border-secondary)] rounded-md shadow-sm focus:outline-none focus:ring-[var(--border-focus)] focus:border-[var(--border-focus)] sm:text-sm bg-[var(--bg-input)] text-[var(--text-primary)]" placeholder="sk-...">
+                                        <button type="button" onclick="const el = document.getElementById('providerApiKey'); el.type = el.type === 'password' ? 'text' : 'password';" class="absolute inset-y-0 right-0 px-3 flex items-center text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Model -->
+                                <div>
+                                    <label for="providerModel" class="block text-sm font-medium text-[var(--text-muted)]" data-i18n="provider.model">Model</label>
+                                    <input type="text" id="providerModel" class="mt-1 block w-full px-3 py-2 border border-[var(--border-secondary)] rounded-md shadow-sm focus:outline-none focus:ring-[var(--border-focus)] focus:border-[var(--border-focus)] sm:text-sm bg-[var(--bg-input)] text-[var(--text-primary)]" placeholder="e.g. gpt-4o-transcribe">
+                                </div>
+
+                                <!-- Base URL -->
+                                <div id="providerBaseUrlGroup">
+                                    <label for="providerBaseUrl" class="block text-sm font-medium text-[var(--text-muted)]" data-i18n="provider.baseUrl">Base URL</label>
+                                    <input type="text" id="providerBaseUrl" class="mt-1 block w-full px-3 py-2 border border-[var(--border-secondary)] rounded-md shadow-sm focus:outline-none focus:ring-[var(--border-focus)] focus:border-[var(--border-focus)] sm:text-sm bg-[var(--bg-input)] text-[var(--text-primary)]" placeholder="https://api.openai.com/v1">
+                                </div>
+
+                                <!-- ASR Base URL (for Local ASR) -->
+                                <div id="providerAsrBaseUrlGroup" style="display: none;">
+                                    <label for="providerAsrBaseUrl" class="block text-sm font-medium text-[var(--text-muted)]" data-i18n="provider.asrBaseUrl">ASR Base URL</label>
+                                    <input type="text" id="providerAsrBaseUrl" class="mt-1 block w-full px-3 py-2 border border-[var(--border-secondary)] rounded-md shadow-sm focus:outline-none focus:ring-[var(--border-focus)] focus:border-[var(--border-focus)] sm:text-sm bg-[var(--bg-input)] text-[var(--text-primary)]" placeholder="http://localhost:9000">
+                                </div>
+
+                                <!-- Save Button -->
+                                <button type="button" id="saveProviderBtn" class="w-full inline-flex items-center justify-center px-4 py-2 bg-[var(--bg-button)] text-[var(--text-button)] rounded-md hover:bg-[var(--bg-button-hover)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--border-focus)] transition-colors duration-200">
+                                    <i class="fas fa-save mr-2"></i>
+                                    <span data-i18n="provider.save">Save Settings</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
 
                     <div id="content-about" class="hidden tab-content pt-6">
                     <div class="space-y-8">
@@ -2756,6 +2835,7 @@ curl "https://your-speakr-instance.com/api/recordings?token=YOUR_TOKEN_HERE"</co
             const tabTemplates = document.getElementById('tab-templates');
             const tabTokens = document.getElementById('tab-tokens');
             const tabAbout = document.getElementById('tab-about');
+            const tabProviders = document.getElementById('tab-providers');
             const contentAccount = document.getElementById('content-account');
             const contentPrompts = document.getElementById('content-prompts');
             const contentShares = document.getElementById('content-shares');
@@ -2764,6 +2844,7 @@ curl "https://your-speakr-instance.com/api/recordings?token=YOUR_TOKEN_HERE"</co
             const contentTags = document.getElementById('content-tags');
             const contentTemplates = document.getElementById('content-templates');
             const contentTokens = document.getElementById('content-tokens');
+            const contentProviders = document.getElementById('content-providers');
             const contentAbout = document.getElementById('content-about');
             const sharesContainer = document.getElementById('shares-container');
 
@@ -2780,6 +2861,7 @@ curl "https://your-speakr-instance.com/api/recordings?token=YOUR_TOKEN_HERE"</co
                 { tab: tabTags, content: contentTags, name: 'tags' },
                 { tab: tabTemplates, content: contentTemplates, name: 'templates' },
                 { tab: tabTokens, content: contentTokens, name: 'tokens' },
+                ...(tabProviders && contentProviders ? [{ tab: tabProviders, content: contentProviders, name: 'providers' }] : []),
                 { tab: tabAbout, content: contentAbout, name: 'about' }
             ];
 
@@ -2811,6 +2893,8 @@ curl "https://your-speakr-instance.com/api/recordings?token=YOUR_TOKEN_HERE"</co
                     loadTemplates();
                 } else if (targetName === 'tokens') {
                     loadTokensTab();
+                } else if (targetName === 'providers') {
+                    loadProviderSettings();
                 } else if (targetName === 'about') {
                     loadSystemInfo();
                 }
@@ -6987,6 +7071,85 @@ curl "https://your-speakr-instance.com/api/recordings?token=YOUR_TOKEN_HERE"</co
             } catch (error) {
                 console.error('Error testing template:', error);
                 showToast('Failed to test template', 'error');
+            }
+        });
+
+        // ===== TRANSCRIPTION PROVIDER SETTINGS =====
+        async function loadProviderSettings() {
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+                const response = await fetch('/api/transcription-provider', {
+                    headers: csrfToken ? { 'X-CSRFToken': csrfToken } : {}
+                });
+                if (!response.ok) return;
+                const data = await response.json();
+
+                const displayEl = document.getElementById('currentProviderDisplay');
+                const dbNotice = document.getElementById('dbOverrideNotice');
+                if (displayEl) {
+                    displayEl.textContent = data.active_connector_display || 'Not configured';
+                    displayEl.classList.toggle('text-[var(--text-primary)]', !!data.active_connector_display);
+                    displayEl.classList.toggle('font-medium', !!data.active_connector_display);
+                }
+                if (dbNotice) {
+                    dbNotice.classList.toggle('hidden', !data.db_override_active);
+                }
+
+                // Populate form fields with DB values
+                const connectorSel = document.getElementById('providerConnector');
+                const modelInput = document.getElementById('providerModel');
+                const baseUrlInput = document.getElementById('providerBaseUrl');
+                const asrBaseUrlInput = document.getElementById('providerAsrBaseUrl');
+
+                if (connectorSel && data.db_connector) connectorSel.value = data.db_connector;
+                if (modelInput && data.db_model) modelInput.value = data.db_model;
+                if (baseUrlInput && data.db_base_url) baseUrlInput.value = data.db_base_url;
+                if (asrBaseUrlInput && data.db_asr_base_url) asrBaseUrlInput.value = data.db_asr_base_url;
+
+                // Show/hide fields based on connector type
+                updateProviderFieldVisibility();
+            } catch (error) {
+                console.error('Failed to load provider settings:', error);
+            }
+        }
+
+        function updateProviderFieldVisibility() {
+            const connector = document.getElementById('providerConnector')?.value;
+            const baseUrlGroup = document.getElementById('providerBaseUrlGroup');
+            const asrBaseUrlGroup = document.getElementById('providerAsrBaseUrlGroup');
+            if (baseUrlGroup) baseUrlGroup.style.display = connector === 'asr_endpoint' ? 'none' : '';
+            if (asrBaseUrlGroup) asrBaseUrlGroup.style.display = connector === 'asr_endpoint' ? '' : 'none';
+        }
+
+        document.getElementById('providerConnector')?.addEventListener('change', updateProviderFieldVisibility);
+
+        document.getElementById('saveProviderBtn')?.addEventListener('click', async () => {
+            const connector = document.getElementById('providerConnector')?.value;
+            const model = document.getElementById('providerModel')?.value;
+            const apiKey = document.getElementById('providerApiKey')?.value;
+            const baseUrl = document.getElementById('providerBaseUrl')?.value;
+            const asrBaseUrl = document.getElementById('providerAsrBaseUrl')?.value;
+
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+                const response = await fetch('/api/transcription-provider', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(csrfToken && { 'X-CSRFToken': csrfToken })
+                    },
+                    body: JSON.stringify({ connector, model, api_key: apiKey, base_url: baseUrl, asr_base_url: asrBaseUrl })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to save settings');
+                }
+
+                showToast(data.message || 'Provider settings saved', 'success');
+                loadProviderSettings(); // Refresh display
+            } catch (error) {
+                showToast(error.message || 'Failed to save provider settings', 'error');
             }
         });
 

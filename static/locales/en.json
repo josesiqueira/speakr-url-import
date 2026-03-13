@@ -1496,7 +1496,42 @@
     "uploadNFiles": "Upload {{count}} File(s)",
     "uploadProgress": "Upload Progress",
     "videoRetained": "Video preserved for playback",
-    "willAutoSummarize": "Will auto-summarize after transcription"
+    "willAutoSummarize": "Will auto-summarize after transcription",
+    "confirmTitle": "Confirm Transcription",
+    "confirmMessage": "This recording will be transcribed using the following provider:",
+    "confirmProceed": "Continue",
+    "confirmCancel": "Cancel"
+  },
+  "stats": {
+    "processingStats": "Processing Stats",
+    "provider": "Provider",
+    "transcriptionTime": "Transcription Time",
+    "summarizationTime": "Summarization Time",
+    "totalProcessingTime": "Total Processing Time",
+    "inputTokens": "Input Tokens",
+    "outputTokens": "Output Tokens",
+    "totalTokens": "Total Tokens",
+    "estimatedCost": "Estimated Cost"
+  },
+  "provider": {
+    "title": "Transcription Provider",
+    "selectProvider": "Select Provider",
+    "apiKey": "API Key",
+    "model": "Model",
+    "baseUrl": "Base URL",
+    "asrBaseUrl": "ASR Base URL",
+    "save": "Save Settings",
+    "settingsSaved": "Provider settings saved successfully",
+    "currentProvider": "Current Provider",
+    "dbOverrideActive": "Using database settings (overriding .env)"
+  },
+  "urlImport": {
+    "import": "Import",
+    "importStarted": "URL import started — transcription will begin shortly",
+    "importing": "Importing...",
+    "placeholder": "Paste a video or audio URL",
+    "supportedSites": "Supports YouTube, Vimeo, and many other sites",
+    "title": "Import from URL"
   },
   "uploadProgress": {
     "title": "Upload Progress"

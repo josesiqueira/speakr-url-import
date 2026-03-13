@@ -224,13 +224,30 @@ class OpenAITranscribeConnector(BaseTranscriptionConnector):
             logger.error(f"GPT-4o transcription failed: {error_msg}")
             raise TranscriptionError(f"GPT-4o transcription failed: {error_msg}") from e
 
+    def _extract_token_usage(self, response):
+        """Extract token usage from OpenAI API response if available."""
+        input_tokens = output_tokens = total_tokens = None
+        usage = getattr(response, 'usage', None)
+        if usage:
+            input_tokens = getattr(usage, 'prompt_tokens', None) or getattr(usage, 'input_tokens', None)
+            output_tokens = getattr(usage, 'completion_tokens', None) or getattr(usage, 'output_tokens', None)
+            total_tokens = getattr(usage, 'total_tokens', None)
+            if total_tokens is None and input_tokens is not None and output_tokens is not None:
+                total_tokens = input_tokens + output_tokens
+            logger.info(f"Token usage: input={input_tokens}, output={output_tokens}, total={total_tokens}")
+        return input_tokens, output_tokens, total_tokens
+
     def _parse_text_response(self, response) -> TranscriptionResponse:
         """Parse a plain text response."""
         text = response.text if hasattr(response, 'text') else str(response)
+        input_tokens, output_tokens, total_tokens = self._extract_token_usage(response)
         return TranscriptionResponse(
             text=text,
             provider=self.PROVIDER_NAME,
-            model=self.model
+            model=self.model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
         )
 
     def _parse_diarized_response(self, response) -> TranscriptionResponse:
@@ -290,13 +307,17 @@ class OpenAITranscribeConnector(BaseTranscriptionConnector):
 
         logger.info(f"Parsed {len(segments)} segments with {len(speakers)} unique speakers: {sorted(speakers)}")
 
+        input_tokens, output_tokens, total_tokens = self._extract_token_usage(response)
         return TranscriptionResponse(
             text=full_text,
             segments=segments,
             speakers=sorted(list(speakers)),
             provider=self.PROVIDER_NAME,
             model=self.model,
-            raw_response=response if isinstance(response, dict) else None
+            raw_response=response if isinstance(response, dict) else None,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
         )
 
     def health_check(self) -> bool:

@@ -152,6 +152,41 @@ Requires [WhisperX ASR Service](https://github.com/murtaza-nasir/whisperx-asr-se
 
 **[View Full Installation Guide →](https://murtaza-nasir.github.io/speakr/getting-started/installation)**
 
+## Running
+
+Start the app:
+```bash
+./start-speakr.sh
+# then open http://localhost:8899
+```
+
+Stop the app:
+```bash
+./stop-speakr.sh
+```
+
+**Chrome bookmark tip:** create a bookmark with:
+- Name: `bash ~/speakr-url-import/start-speakr.sh`
+- URL: `http://localhost:8899`
+
+Run the command in terminal, then click the bookmark to open the UI.
+
+## Keeping your fork up to date
+
+Add the upstream remote once:
+```bash
+git remote add upstream https://github.com/murtaza-nasir/speakr.git
+```
+
+Then sync whenever you want updates from the original Speakr:
+```bash
+./sync-upstream.sh
+```
+
+This pulls new features and bugfixes from upstream while keeping your URL import feature intact.
+
+The `$(dirname "$0")` part is important — it means the scripts work correctly regardless of which directory you're in when you run them, not just when you're already inside the repo folder.
+
 ## Documentation
 
 Complete documentation is available at **[murtaza-nasir.github.io/speakr](https://murtaza-nasir.github.io/speakr)**

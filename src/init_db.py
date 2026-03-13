@@ -550,6 +550,18 @@ def initialize_database(app):
         except Exception as e:
             app.logger.warning(f"Could not create index on recording.folder_id: {e}")
 
+        # Transcription provider metadata columns on recording table
+        if add_column_if_not_exists(engine, 'recording', 'transcription_provider', 'VARCHAR(100)'):
+            app.logger.info("Added transcription_provider column to recording table")
+        if add_column_if_not_exists(engine, 'recording', 'transcription_model', 'VARCHAR(100)'):
+            app.logger.info("Added transcription_model column to recording table")
+        if add_column_if_not_exists(engine, 'recording', 'transcription_input_tokens', 'INTEGER'):
+            app.logger.info("Added transcription_input_tokens column to recording table")
+        if add_column_if_not_exists(engine, 'recording', 'transcription_output_tokens', 'INTEGER'):
+            app.logger.info("Added transcription_output_tokens column to recording table")
+        if add_column_if_not_exists(engine, 'recording', 'transcription_total_tokens', 'INTEGER'):
+            app.logger.info("Added transcription_total_tokens column to recording table")
+
         # Initialize default system settings
         if not SystemSetting.query.filter_by(key='transcript_length_limit').first():
             SystemSetting.set_setting(

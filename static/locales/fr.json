@@ -1496,7 +1496,42 @@
     "uploadNFiles": "Upload {{count}} File(s)",
     "uploadProgress": "Progression du Téléchargement",
     "videoRetained": "Vidéo conservée pour la lecture",
-    "willAutoSummarize": "Résumé automatique après la transcription"
+    "willAutoSummarize": "Résumé automatique après la transcription",
+    "confirmTitle": "Confirmer la Transcription",
+    "confirmMessage": "Cet enregistrement sera transcrit en utilisant le fournisseur suivant :",
+    "confirmProceed": "Continuer",
+    "confirmCancel": "Annuler"
+  },
+  "stats": {
+    "processingStats": "Statistiques de Traitement",
+    "provider": "Fournisseur",
+    "transcriptionTime": "Temps de Transcription",
+    "summarizationTime": "Temps de Résumé",
+    "totalProcessingTime": "Temps Total de Traitement",
+    "inputTokens": "Tokens d'Entrée",
+    "outputTokens": "Tokens de Sortie",
+    "totalTokens": "Tokens Totaux",
+    "estimatedCost": "Coût Estimé"
+  },
+  "provider": {
+    "title": "Fournisseur de Transcription",
+    "selectProvider": "Sélectionner le Fournisseur",
+    "apiKey": "Clé API",
+    "model": "Modèle",
+    "baseUrl": "URL de Base",
+    "asrBaseUrl": "URL de Base ASR",
+    "save": "Enregistrer les Paramètres",
+    "settingsSaved": "Paramètres du fournisseur enregistrés avec succès",
+    "currentProvider": "Fournisseur Actuel",
+    "dbOverrideActive": "Utilisation des paramètres de la base de données (remplaçant .env)"
+  },
+  "urlImport": {
+    "import": "Importer",
+    "importStarted": "Importation de l'URL lancée — la transcription commencera sous peu",
+    "importing": "Importation...",
+    "placeholder": "Coller une URL vidéo ou audio",
+    "supportedSites": "Compatible avec YouTube, Vimeo et de nombreux autres sites",
+    "title": "Importer depuis une URL"
   },
   "uploadProgress": {
     "title": "Progression du Téléchargement"

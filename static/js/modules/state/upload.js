@@ -30,6 +30,15 @@ export function createUploadState(ref, computed) {
     const uploadHotwords = ref('');
     const uploadInitialPrompt = ref('');
 
+    // URL Import
+    const urlImportInput = ref('');
+    const urlImportLoading = ref(false);
+    const urlImportError = ref('');
+
+    // Upload Confirmation
+    const showUploadConfirmation = ref(false);
+    const pendingUrlImport = ref('');
+
     // --- Computed Properties ---
     const totalInQueue = computed(() => uploadQueue.value.length);
     const completedInQueue = computed(() => uploadQueue.value.filter(item => item.status === 'completed' || item.status === 'failed').length);
@@ -65,6 +74,15 @@ export function createUploadState(ref, computed) {
         uploadMaxSpeakers,
         uploadHotwords,
         uploadInitialPrompt,
+
+        // URL Import
+        urlImportInput,
+        urlImportLoading,
+        urlImportError,
+
+        // Upload Confirmation
+        showUploadConfirmation,
+        pendingUrlImport,
 
         // Computed
         totalInQueue,

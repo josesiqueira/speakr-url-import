@@ -45,7 +45,13 @@ export function useUpload(state, utils) {
         // View state
         currentView,
         // Upload disclaimer state
-        uploadDisclaimer, showUploadDisclaimerModal
+        uploadDisclaimer, showUploadDisclaimerModal,
+        // URL import state
+        urlImportInput, urlImportLoading, urlImportError,
+        // Upload confirmation state
+        showUploadConfirmation, pendingUrlImport,
+        // Provider info
+        activeConnectorDisplay
     } = state;
 
     const { computed, nextTick, ref } = Vue;
@@ -251,6 +257,17 @@ export function useUpload(state, utils) {
             showUploadDisclaimerModal.value = true;
             return;
         }
+        // Show upload confirmation if provider is configured
+        if (activeConnectorDisplay && activeConnectorDisplay.value) {
+            pendingUrlImport.value = '';
+            showUploadConfirmation.value = true;
+            return;
+        }
+        proceedWithUpload();
+    };
+
+    // Actually proceed with the upload (after confirmation)
+    const proceedWithUpload = () => {
         // Update all queued files with current tags and ASR options
         // AND change their status to 'ready' so they move to upload progress immediately
         for (const item of uploadQueue.value) {
@@ -771,6 +788,105 @@ export function useUpload(state, utils) {
         return IncognitoStorage.hasIncognitoRecording();
     };
 
+    // === URL IMPORT ===
+    const submitUrlImport = async () => {
+        const url = urlImportInput.value?.trim();
+        if (!url) return;
+
+        // Show upload confirmation if provider is configured
+        if (activeConnectorDisplay && activeConnectorDisplay.value) {
+            pendingUrlImport.value = url;
+            showUploadConfirmation.value = true;
+            return;
+        }
+        await executeUrlImport(url);
+    };
+
+    const executeUrlImport = async (url) => {
+        if (!url) return;
+
+        urlImportLoading.value = true;
+        urlImportError.value = '';
+
+        try {
+            // Build request body with current ASR options
+            const body = { url };
+
+            const language = uploadLanguage.value;
+            if (language) body.language = language;
+
+            if (connectorSupportsDiarization.value) {
+                const minSpeakers = uploadMinSpeakers.value;
+                const maxSpeakers = uploadMaxSpeakers.value;
+                if (minSpeakers && minSpeakers !== '') body.min_speakers = minSpeakers;
+                if (maxSpeakers && maxSpeakers !== '') body.max_speakers = maxSpeakers;
+            }
+
+            const hotwords = uploadHotwords.value;
+            const initialPrompt = uploadInitialPrompt.value;
+            if (hotwords && hotwords.trim()) body.hotwords = hotwords.trim();
+            if (initialPrompt && initialPrompt.trim()) body.initial_prompt = initialPrompt.trim();
+
+            // Add tags
+            if (selectedTagIds.value.length > 0) {
+                body.tag_ids = [...selectedTagIds.value];
+            }
+
+            // Add folder
+            if (selectedFolderId.value) {
+                body.folder_id = selectedFolderId.value;
+            }
+
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            const response = await fetch('/api/recordings/import-url', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(csrfToken && { 'X-CSRFToken': csrfToken })
+                },
+                body: JSON.stringify(body)
+            });
+
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                const text = await response.text();
+                const titleMatch = text.match(/<title>([^<]+)<\/title>/i);
+                throw new Error(titleMatch?.[1] || `Server error (${response.status})`);
+            }
+
+            const data = await response.json();
+
+            if (!response.ok || data.error) {
+                throw new Error(data.error || `Import failed with status ${response.status}`);
+            }
+
+            // Add to recordings list
+            recordings.value.unshift(data);
+            totalRecordings.value++;
+
+            // Handle duplicate warning
+            if (data.duplicate_warning) {
+                const warning = data.duplicate_warning;
+                const existingDate = warning.existing_created_at
+                    ? new Date(warning.existing_created_at).toLocaleDateString()
+                    : '';
+                const existingName = warning.existing_title || 'Unknown';
+                showToast(`⚠️ ${existingName} (${existingDate})`, 'fa-copy');
+            }
+
+            showToast(t('urlImport.importStarted'), 'fa-link');
+            urlImportInput.value = '';
+
+        } catch (error) {
+            console.error('[URL Import] Failed:', error);
+            urlImportError.value = error.message;
+            const friendlyErr = getFriendlyError(error.message, t);
+            setGlobalError(`${friendlyErr.title}: ${friendlyErr.guidance || error.message}`);
+        } finally {
+            urlImportLoading.value = false;
+        }
+    };
+
     return {
         handleDragOver,
         handleDragLeave,
@@ -804,6 +920,11 @@ export function useUpload(state, utils) {
         clearIncognitoRecordingWithConfirm,
         selectIncognitoRecording,
         loadIncognitoRecording,
-        hasIncognitoRecording
+        hasIncognitoRecording,
+        // URL import
+        submitUrlImport,
+        // Upload confirmation helpers
+        proceedWithUpload,
+        executeUrlImport
     };
 }

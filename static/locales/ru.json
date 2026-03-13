@@ -1496,7 +1496,42 @@
     "uploadNFiles": "Upload {{count}} File(s)",
     "uploadProgress": "Прогресс загрузки",
     "videoRetained": "Видео сохранено для воспроизведения",
-    "willAutoSummarize": "Автоматически создаст резюме после транскрибирования"
+    "willAutoSummarize": "Автоматически создаст резюме после транскрибирования",
+    "confirmTitle": "Подтвердить Транскрипцию",
+    "confirmMessage": "Эта запись будет транскрибирована с использованием следующего провайдера:",
+    "confirmProceed": "Продолжить",
+    "confirmCancel": "Отмена"
+  },
+  "stats": {
+    "processingStats": "Статистика Обработки",
+    "provider": "Провайдер",
+    "transcriptionTime": "Время Транскрипции",
+    "summarizationTime": "Время Резюмирования",
+    "totalProcessingTime": "Общее Время Обработки",
+    "inputTokens": "Входные Токены",
+    "outputTokens": "Выходные Токены",
+    "totalTokens": "Всего Токенов",
+    "estimatedCost": "Расчётная Стоимость"
+  },
+  "provider": {
+    "title": "Провайдер Транскрипции",
+    "selectProvider": "Выбрать Провайдера",
+    "apiKey": "API Ключ",
+    "model": "Модель",
+    "baseUrl": "Базовый URL",
+    "asrBaseUrl": "Базовый URL ASR",
+    "save": "Сохранить Настройки",
+    "settingsSaved": "Настройки провайдера успешно сохранены",
+    "currentProvider": "Текущий Провайдер",
+    "dbOverrideActive": "Используются настройки из базы данных (переопределяя .env)"
+  },
+  "urlImport": {
+    "import": "Импорт",
+    "importStarted": "Импорт URL начат — транскрипция начнётся в ближайшее время",
+    "importing": "Импорт...",
+    "placeholder": "Вставьте URL видео или аудио",
+    "supportedSites": "Поддерживает YouTube, Vimeo и многие другие сайты",
+    "title": "Импорт по URL"
   },
   "uploadProgress": {
     "title": "Прогресс загрузки"

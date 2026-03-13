@@ -236,6 +236,29 @@ def get_config():
         # Derive ASR status from connector or legacy env var
         asr_enabled = is_asr_connector or USE_ASR_ENDPOINT
 
+        # Build active connector display info for frontend badges/confirmation
+        active_connector_name = ''
+        active_connector_model = ''
+        active_connector_display = ''
+        display_names = {
+            'openai_transcribe': 'OpenAI',
+            'openai_whisper': 'Whisper',
+            'asr_endpoint': 'Local ASR',
+            'azure_openai_transcribe': 'Azure',
+        }
+        if USE_NEW_TRANSCRIPTION_ARCHITECTURE:
+            try:
+                from src.services.transcription import get_registry
+                _reg = get_registry()
+                _conn = _reg.get_active_connector()
+                if _conn:
+                    active_connector_name = _reg.get_active_connector_name()
+                    active_connector_model = getattr(_conn, 'model', '') or ''
+                    provider_label = display_names.get(active_connector_name, active_connector_name)
+                    active_connector_display = f"{provider_label} · {active_connector_model}" if active_connector_model and active_connector_model != active_connector_name else provider_label
+            except Exception:
+                pass
+
         return jsonify({
             'max_file_size_mb': max_file_size_mb,
             'recording_disclaimer': SystemSetting.get_setting('recording_disclaimer', ''),
@@ -255,6 +278,9 @@ def get_config():
             'enable_auto_export': ENABLE_AUTO_EXPORT,
             'video_retention': VIDEO_RETENTION,
             'max_concurrent_uploads': MAX_CONCURRENT_UPLOADS,
+            'active_connector_name': active_connector_name,
+            'active_connector_model': active_connector_model,
+            'active_connector_display': active_connector_display,
             **chunking_info
         })
     except Exception as e:
@@ -262,6 +288,127 @@ def get_config():
         return jsonify({'error': str(e)}), 500
 
 
+
+
+@system_bp.route('/api/transcription-provider', methods=['GET'])
+@login_required
+def get_transcription_provider():
+    """Get current transcription provider configuration."""
+    try:
+        if not current_user.is_admin:
+            return jsonify({'error': 'Admin access required'}), 403
+
+        # Provider display name lookup
+        display_names = {
+            'openai_transcribe': 'OpenAI',
+            'openai_whisper': 'Whisper',
+            'asr_endpoint': 'Local ASR',
+            'azure_openai_transcribe': 'Azure',
+        }
+
+        active_name = ''
+        active_model = ''
+        active_display = ''
+
+        if USE_NEW_TRANSCRIPTION_ARCHITECTURE:
+            try:
+                from src.services.transcription import get_registry
+                registry = get_registry()
+                connector = registry.get_active_connector()
+                if connector:
+                    active_name = registry.get_active_connector_name()
+                    active_model = getattr(connector, 'model', '') or ''
+                    provider_label = display_names.get(active_name, active_name)
+                    active_display = f"{provider_label} · {active_model}" if active_model and active_model != active_name else provider_label
+            except Exception as e:
+                current_app.logger.warning(f"Could not get active connector: {e}")
+
+        # Check if DB override is active
+        db_connector = SystemSetting.get_setting('transcription_connector', None)
+        db_override_active = db_connector is not None and db_connector != ''
+
+        # List available connectors
+        available = []
+        if USE_NEW_TRANSCRIPTION_ARCHITECTURE:
+            try:
+                from src.services.transcription import get_registry
+                registry = get_registry()
+                for info in registry.list_connectors():
+                    available.append({
+                        'name': info['name'],
+                        'display_name': display_names.get(info['name'], info['name']),
+                        'capabilities': info['capabilities'],
+                    })
+            except Exception:
+                pass
+
+        return jsonify({
+            'active_connector_name': active_name,
+            'active_connector_model': active_model,
+            'active_connector_display': active_display,
+            'db_override_active': db_override_active,
+            'db_connector': db_connector or '',
+            'db_model': SystemSetting.get_setting('transcription_model', ''),
+            'db_base_url': SystemSetting.get_setting('transcription_base_url', ''),
+            'db_asr_base_url': SystemSetting.get_setting('asr_base_url', ''),
+            'available_connectors': available,
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error getting transcription provider: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@system_bp.route('/api/transcription-provider', methods=['POST'])
+@login_required
+def save_transcription_provider():
+    """Save transcription provider settings to database."""
+    try:
+        if not current_user.is_admin:
+            return jsonify({'error': 'Admin access required'}), 403
+
+        data = request.json or {}
+
+        connector_name = data.get('connector', '').strip()
+        model = data.get('model', '').strip()
+        api_key = data.get('api_key', '').strip()
+        base_url = data.get('base_url', '').strip()
+        asr_base_url = data.get('asr_base_url', '').strip()
+
+        # Validate connector name if provided
+        if connector_name:
+            valid_connectors = ['openai_transcribe', 'openai_whisper', 'asr_endpoint', 'azure_openai_transcribe']
+            if connector_name not in valid_connectors:
+                return jsonify({'error': f'Invalid connector: {connector_name}. Valid: {valid_connectors}'}), 400
+
+        # Save settings to database
+        if connector_name:
+            SystemSetting.set_setting('transcription_connector', connector_name, 'Transcription connector type', 'string')
+        if model:
+            SystemSetting.set_setting('transcription_model', model, 'Transcription model name', 'string')
+        if api_key:
+            SystemSetting.set_setting('transcription_api_key', api_key, 'Transcription API key', 'string')
+        if base_url:
+            SystemSetting.set_setting('transcription_base_url', base_url, 'Transcription base URL', 'string')
+        if asr_base_url:
+            SystemSetting.set_setting('asr_base_url', asr_base_url, 'ASR endpoint base URL', 'string')
+
+        db.session.commit()
+
+        # Reinitialize the connector with new settings
+        if USE_NEW_TRANSCRIPTION_ARCHITECTURE:
+            try:
+                from src.services.transcription import get_registry
+                registry = get_registry()
+                registry.reinitialize()
+                current_app.logger.info("Transcription connector reinitialized with new DB settings")
+            except Exception as e:
+                current_app.logger.error(f"Failed to reinitialize connector: {e}")
+                return jsonify({'error': f'Settings saved but connector failed to initialize: {str(e)}'}), 500
+
+        return jsonify({'success': True, 'message': 'Transcription provider settings saved'})
+    except Exception as e:
+        current_app.logger.error(f"Error saving transcription provider: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 @system_bp.route('/api/csrf-token', methods=['GET'])

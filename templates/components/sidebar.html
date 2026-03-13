@@ -446,6 +446,13 @@
                                 </div>
                             </div>
 
+                            <!-- Provider Badge -->
+                            <span v-if="recording.transcription_provider"
+                                  class="text-[10px] text-[var(--text-muted)] flex items-center gap-1 mt-0.5">
+                                <i class="fas fa-microchip" style="font-size: 8px;"></i>
+                                ${ formatProviderBadge(recording.transcription_provider, recording.transcription_model) }
+                            </span>
+
                             <!-- Tags -->
                             <div v-if="getRecordingTags(recording).length > 0 || recording.duplicate_info" class="flex flex-wrap items-center gap-1 mt-1">
                                 <button v-for="tag in getRecordingTags(recording).slice(0, 4)" :key="tag.id"
