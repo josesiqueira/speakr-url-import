@@ -279,6 +279,10 @@ def initialize_database(app):
         if add_column_if_not_exists(engine, 'user', 'auto_summarization', 'BOOLEAN DEFAULT 1'):
             app.logger.info("Added auto_summarization column to user table")
 
+        # Preferred LLM model for summarization
+        if add_column_if_not_exists(engine, 'user', 'preferred_model', 'VARCHAR(100)'):
+            app.logger.info("Added preferred_model column to user table")
+
         # Transcription hints (hotwords and initial prompt for improving ASR accuracy)
         if add_column_if_not_exists(engine, 'user', 'transcription_hotwords', 'TEXT'):
             app.logger.info("Added transcription_hotwords column to user table")
@@ -561,6 +565,10 @@ def initialize_database(app):
             app.logger.info("Added transcription_output_tokens column to recording table")
         if add_column_if_not_exists(engine, 'recording', 'transcription_total_tokens', 'INTEGER'):
             app.logger.info("Added transcription_total_tokens column to recording table")
+
+        # Source URL for URL-imported recordings
+        if add_column_if_not_exists(engine, 'recording', 'source_url', 'VARCHAR(2000)'):
+            app.logger.info("Added source_url column to recording table")
 
         # Initialize default system settings
         if not SystemSetting.query.filter_by(key='transcript_length_limit').first():

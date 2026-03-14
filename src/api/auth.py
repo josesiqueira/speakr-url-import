@@ -699,7 +699,8 @@ def account():
                            admin_disabled_auto_summarization=admin_disabled_auto_summarization,
                            auto_summarization=current_user.auto_summarization if current_user.auto_summarization is not None else True,
                            user_language=user_language,
-                           enable_auto_export=ENABLE_AUTO_EXPORT)
+                           enable_auto_export=ENABLE_AUTO_EXPORT,
+                           preferred_model=current_user.preferred_model or '')
 
 
 @auth_bp.route('/api/user/auto-speaker-labelling', methods=['POST'])
@@ -748,6 +749,58 @@ def update_auto_summarization():
     return jsonify({
         'success': True,
         'auto_summarization': current_user.auto_summarization
+    })
+
+
+@auth_bp.route('/api/models', methods=['GET'])
+@login_required
+def list_models():
+    """List available LLM models from the configured provider (e.g. Ollama)."""
+    import httpx
+
+    base_url = os.environ.get('TEXT_MODEL_BASE_URL', '')
+    default_model = os.environ.get('TEXT_MODEL_NAME', '')
+
+    models = []
+    # Try Ollama-native /api/tags endpoint
+    # Derive Ollama base from the OpenAI-compat URL (strip /v1 suffix)
+    ollama_base = base_url.rstrip('/')
+    if ollama_base.endswith('/v1'):
+        ollama_base = ollama_base[:-3]
+
+    try:
+        resp = httpx.get(f'{ollama_base}/api/tags', timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            for m in data.get('models', []):
+                models.append(m.get('name', ''))
+    except Exception as e:
+        current_app.logger.warning(f"Could not fetch models from Ollama: {e}")
+
+    return jsonify({
+        'models': sorted(models),
+        'default_model': default_model,
+        'preferred_model': current_user.preferred_model or ''
+    })
+
+
+@auth_bp.route('/api/user/preferred-model', methods=['POST'])
+@login_required
+def update_preferred_model():
+    """Save user's preferred LLM model for summarization."""
+    data = request.get_json()
+
+    if data is None:
+        return jsonify({'success': False, 'error': 'Invalid JSON'}), 400
+
+    model = data.get('model', '').strip()
+    # Empty string means "use system default"
+    current_user.preferred_model = model if model else None
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'preferred_model': current_user.preferred_model or ''
     })
 
 

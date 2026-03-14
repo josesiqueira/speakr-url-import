@@ -120,7 +120,11 @@ class OpenAITranscribeConnector(BaseTranscriptionConnector):
                 "X-Title": "Speakr - AI Audio Transcription",
                 "User-Agent": "Speakr/1.0 (https://github.com/murtaza-nasir/speakr)"
             }
-            http_client = httpx.Client(verify=True, headers=app_headers)
+            http_client = httpx.Client(
+                verify=True,
+                headers=app_headers,
+                timeout=httpx.Timeout(connect=30.0, read=1800.0, write=300.0, pool=30.0)
+            )
 
         self.client = OpenAI(
             api_key=config['api_key'],

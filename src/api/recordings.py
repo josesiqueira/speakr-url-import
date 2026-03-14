@@ -2543,6 +2543,7 @@ def import_url():
             mime_type=mime_type,
             folder_id=selected_folder.id if selected_folder else None,
             processing_source='url_import',
+            source_url=url,
             file_hash=file_hash,
             transcription_provider=intended_provider,
             transcription_model=intended_model,

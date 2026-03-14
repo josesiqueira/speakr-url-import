@@ -708,6 +708,22 @@
                         {% endif %}
                     </div>
 
+                    <!-- Summarization Model Selection -->
+                    <div class="bg-[var(--bg-tertiary)] p-6 rounded-lg border border-[var(--border-primary)] mb-6">
+                        <h3 class="text-lg font-medium text-[var(--text-secondary)] mb-4">
+                            <i class="fas fa-robot mr-2"></i>
+                            <span data-i18n="account.summarizationModel">Summarization Model</span>
+                        </h3>
+                        <p class="text-sm text-[var(--text-muted)] mb-4" data-i18n="account.modelDescription">
+                            Choose which LLM model to use for generating summaries. Leave as default to use the system-configured model.
+                        </p>
+                        <select id="preferredModelSelect"
+                                class="w-full px-3 py-2 border border-[var(--border-secondary)] rounded-md shadow-sm focus:outline-none focus:ring-[var(--border-focus)] focus:border-[var(--border-focus)] sm:text-sm bg-[var(--bg-input)] text-[var(--text-primary)]">
+                            <option value="" data-i18n="account.useDefaultModel">Use default model</option>
+                        </select>
+                        <p class="text-xs text-[var(--text-light)] mt-2" id="modelLoadingStatus"></p>
+                    </div>
+
                     <form id="customPromptsForm" method="POST" action="{{ url_for('auth.account') }}" class="space-y-6">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
@@ -2627,6 +2643,79 @@ curl "https://your-speakr-instance.com/api/recordings?token=YOUR_TOKEN_HERE"</co
 
             if (autoSummarizationToggle) {
                 autoSummarizationToggle.addEventListener('change', updateAutoSummarization);
+            }
+
+            // Setup preferred model dropdown
+            const preferredModelSelect = document.getElementById('preferredModelSelect');
+            const modelLoadingStatus = document.getElementById('modelLoadingStatus');
+
+            async function loadModels() {
+                if (!preferredModelSelect) return;
+                const statusEl = modelLoadingStatus;
+                if (statusEl) statusEl.textContent = window.i18n?.t('account.loadingModels') || 'Loading models...';
+
+                try {
+                    const response = await fetch('/api/models');
+                    if (!response.ok) throw new Error('Failed to fetch models');
+                    const data = await response.json();
+
+                    // Clear existing options except the default
+                    preferredModelSelect.innerHTML = '';
+                    const defaultOpt = document.createElement('option');
+                    defaultOpt.value = '';
+                    defaultOpt.textContent = (window.i18n?.t('account.useDefaultModel') || 'Use default model') +
+                        (data.default_model ? ` (${data.default_model})` : '');
+                    preferredModelSelect.appendChild(defaultOpt);
+
+                    // Add available models
+                    for (const model of data.models) {
+                        const opt = document.createElement('option');
+                        opt.value = model;
+                        opt.textContent = model;
+                        preferredModelSelect.appendChild(opt);
+                    }
+
+                    // Set current selection
+                    preferredModelSelect.value = data.preferred_model || '';
+                    if (statusEl) statusEl.textContent = '';
+                } catch (error) {
+                    console.error('Error loading models:', error);
+                    if (statusEl) statusEl.textContent = '';
+                    // Still allow using saved preference even if Ollama is unreachable
+                    const savedModel = '{{ preferred_model }}';
+                    if (savedModel) {
+                        const opt = document.createElement('option');
+                        opt.value = savedModel;
+                        opt.textContent = savedModel;
+                        preferredModelSelect.appendChild(opt);
+                        preferredModelSelect.value = savedModel;
+                    }
+                }
+            }
+
+            async function savePreferredModel() {
+                if (!preferredModelSelect) return;
+                const csrfToken = document.querySelector('meta[name=csrf-token]')?.getAttribute('content');
+                try {
+                    const response = await fetch('/api/user/preferred-model', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: JSON.stringify({ model: preferredModelSelect.value })
+                    });
+                    if (!response.ok) {
+                        console.error('Failed to save preferred model');
+                    }
+                } catch (error) {
+                    console.error('Error saving preferred model:', error);
+                }
+            }
+
+            if (preferredModelSelect) {
+                loadModels();
+                preferredModelSelect.addEventListener('change', savePreferredModel);
             }
 
             // Setup merge modal event listeners

@@ -207,6 +207,23 @@
                 </span>
             </div>
 
+            <!-- Source URL (for URL-imported recordings) -->
+            <div v-if="selectedRecording.source_url" class="flex items-center gap-2">
+                <i class="fas fa-link text-[var(--text-accent)]"></i>
+                <a :href="selectedRecording.source_url"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   class="hover:text-[var(--text-accent)] transition-colors max-w-[300px] truncate inline-block"
+                   :title="selectedRecording.source_url">
+                    ${ selectedRecording.source_url.replace(/^https?:\/\/(www\.)?/, '') }
+                </a>
+                <button @click.stop="navigator.clipboard.writeText(selectedRecording.source_url)"
+                        class="text-[var(--text-muted)] hover:text-[var(--text-accent)] transition-colors"
+                        title="Copy URL">
+                    <i class="fas fa-copy text-xs"></i>
+                </button>
+            </div>
+
             <!-- Other Metadata -->
             <div v-if="activeRecordingMetadata && activeRecordingMetadata.length > 0" class="flex flex-wrap items-center gap-x-6 gap-y-2">
                 <span v-for="(item, index) in activeRecordingMetadata" :key="index" class="flex items-center gap-1.5">

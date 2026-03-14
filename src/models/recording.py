@@ -40,6 +40,7 @@ class Recording(db.Model):
     transcription_duration_seconds = db.Column(db.Integer, nullable=True)  # Time taken for transcription
     summarization_duration_seconds = db.Column(db.Integer, nullable=True)  # Time taken for summarization
     processing_source = db.Column(db.String(50), default='upload')  # upload, auto_process, recording
+    source_url = db.Column(db.String(2000), nullable=True)  # Original URL for url_import recordings
     error_message = db.Column(db.Text, nullable=True)  # Store detailed error messages
     file_hash = db.Column(db.String(64), nullable=True)  # SHA-256 hash for duplicate detection
 
@@ -236,7 +237,8 @@ class Recording(db.Model):
             'transcription_model': self.transcription_model,
             'duplicate_info': self.get_duplicate_info(),
             'shared_with_count': shared_with_count,
-            'public_share_count': public_share_count
+            'public_share_count': public_share_count,
+            'source_url': self.source_url
         }
 
     def to_dict(self, include_html=True, viewer_user=None):
@@ -301,7 +303,8 @@ class Recording(db.Model):
             'transcription_total_tokens': self.transcription_total_tokens,
             'duplicate_info': self.get_duplicate_info(),
             'shared_with_count': shared_with_count,
-            'public_share_count': public_share_count
+            'public_share_count': public_share_count,
+            'source_url': self.source_url
         }
 
         # Only compute expensive HTML conversions when explicitly requested

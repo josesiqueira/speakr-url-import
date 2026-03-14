@@ -58,6 +58,9 @@ class User(db.Model, UserMixin):
     # Auto summarization setting (user can disable if admin hasn't globally disabled)
     auto_summarization = db.Column(db.Boolean, default=True)
 
+    # Preferred LLM model for summarization (None = use system default)
+    preferred_model = db.Column(db.String(100), nullable=True)
+
     # Transcription hints (hotwords and initial prompt for improving ASR accuracy)
     transcription_hotwords = db.Column(db.Text, nullable=True)
     transcription_initial_prompt = db.Column(db.Text, nullable=True)

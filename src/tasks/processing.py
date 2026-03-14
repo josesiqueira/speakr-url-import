@@ -415,6 +415,7 @@ def generate_summary_only_task(app_context, recording_id, custom_prompt_override
         # Get user preferences and tag custom prompts
         user_summary_prompt = None
         user_output_language = None
+        user_preferred_model = None
         tag_custom_prompt = None
 
         # Determine which user's perspective to use for tag visibility
@@ -476,6 +477,7 @@ def generate_summary_only_task(app_context, recording_id, custom_prompt_override
         if recording.owner:
             user_summary_prompt = recording.owner.summary_prompt
             user_output_language = recording.owner.output_language
+            user_preferred_model = recording.owner.preferred_model
 
         # Format transcription for LLM (convert JSON to clean text format like clipboard copy)
         formatted_transcription = format_transcription_for_llm(recording.transcription)
@@ -582,7 +584,8 @@ Summarization Instructions:
                 temperature=0.5,
                 max_tokens=int(os.environ.get("SUMMARY_MAX_TOKENS", "3000")),
                 user_id=recording.user_id,
-                operation_type='summarization'
+                operation_type='summarization',
+                model_override=user_preferred_model
             )
 
             raw_response = completion.choices[0].message.content

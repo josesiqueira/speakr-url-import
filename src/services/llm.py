@@ -140,7 +140,7 @@ def is_using_openai_api():
 
 
 def call_llm_completion(messages, temperature=0.7, response_format=None, stream=False, max_tokens=None,
-                        user_id=None, operation_type=None):
+                        user_id=None, operation_type=None, model_override=None):
     """
     Centralized function for LLM API calls with proper error handling and logging.
 
@@ -177,12 +177,17 @@ def call_llm_completion(messages, temperature=0.7, response_format=None, stream=
             # Log but don't block on budget check errors
             logger.warning(f"Budget check failed for user {user_id}: {e}")
 
+    # Use override model if provided, otherwise fall back to default
+    effective_model = model_override or TEXT_MODEL_NAME
+    if model_override:
+        logger.info(f"Using model override: {effective_model} (default: {TEXT_MODEL_NAME})")
+
     try:
         # Check if we're using GPT-5 with OpenAI API
-        using_gpt5 = is_gpt5_model(TEXT_MODEL_NAME) and is_using_openai_api()
+        using_gpt5 = is_gpt5_model(effective_model) and is_using_openai_api()
 
         completion_args = {
-            "model": TEXT_MODEL_NAME,
+            "model": effective_model,
             "messages": messages,
             "stream": stream
         }
@@ -195,7 +200,7 @@ def call_llm_completion(messages, temperature=0.7, response_format=None, stream=
         if using_gpt5:
             # GPT-5 models don't support temperature, top_p, or logprobs
             # They use reasoning_effort and verbosity instead
-            logger.debug(f"Using GPT-5 model: {TEXT_MODEL_NAME} - applying GPT-5 specific parameters")
+            logger.debug(f"Using GPT-5 model: {effective_model} - applying GPT-5 specific parameters")
 
             # Get GPT-5 specific parameters from environment variables
             reasoning_effort = os.environ.get("GPT5_REASONING_EFFORT", "medium")  # minimal, low, medium, high
@@ -230,7 +235,7 @@ def call_llm_completion(messages, temperature=0.7, response_format=None, stream=
                     prompt_tokens=response.usage.prompt_tokens,
                     completion_tokens=response.usage.completion_tokens,
                     total_tokens=response.usage.total_tokens,
-                    model_name=TEXT_MODEL_NAME,
+                    model_name=effective_model,
                     cost=getattr(response.usage, 'cost', None)
                 )
             except Exception as e:
@@ -240,7 +245,7 @@ def call_llm_completion(messages, temperature=0.7, response_format=None, stream=
         if not stream and response.choices:
             content = response.choices[0].message.content
             if not content:
-                logger.warning(f"LLM returned empty content. Model: {TEXT_MODEL_NAME}, finish_reason: {response.choices[0].finish_reason}")
+                logger.warning(f"LLM returned empty content. Model: {effective_model}, finish_reason: {response.choices[0].finish_reason}")
                 # Log more details if available
                 if hasattr(response.choices[0].message, 'refusal'):
                     logger.warning(f"Refusal: {response.choices[0].message.refusal}")
