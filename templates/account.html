@@ -3067,6 +3067,13 @@ curl "https://your-speakr-instance.com/api/recordings?token=YOUR_TOKEN_HERE"</co
                 showTokensTab();
             });
 
+            if (tabProviders) {
+                tabProviders.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    switchToTab('providers');
+                });
+            }
+
             tabAbout.addEventListener('click', (e) => {
                 e.preventDefault();
                 showAboutTab();
