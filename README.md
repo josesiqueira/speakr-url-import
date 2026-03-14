@@ -1,70 +1,140 @@
-# Speakr (URL Import Fork)
+# Speakr (Fork)
 
-A fork of [Speakr](https://github.com/murtaza-nasir/speakr) — a self-hosted AI transcription and note-taking platform — with added URL import and provider management features.
+Fork of [Speakr](https://github.com/murtaza-nasir/speakr) with URL import, local LLM summarization via Ollama, and provider management.
 
-## What This Fork Adds
+See the original project for full documentation: [murtaza-nasir.github.io/speakr](https://murtaza-nasir.github.io/speakr)
 
-- **URL Import** — Paste a YouTube, Vimeo, or other video/audio URL and transcribe it directly (powered by yt-dlp)
-- **Transcription Provider Settings** — Switch providers (OpenAI, Whisper, Local ASR, Azure) from the UI without restarting
-- **Provider Badges** — See which provider/model processed each recording at a glance
-- **Upload Confirmation** — Transparency step showing the active provider before any API call
-- **Processing Stats** — Token counts, timing, and estimated cost per recording
+## What this fork adds
 
-## Running
+- URL import -- paste a YouTube/Vimeo/audio URL, transcribe directly (yt-dlp)
+- Local summarization -- Ollama + Qwen 2.5 7B, no data leaves your machine
+- Per-user model selection -- pick which Ollama model to use from the UI
+- Transcription provider settings -- switch providers from the UI without restart
+- Processing stats -- token counts, timing, and cost per recording
 
-```bash
-# Start
-./start-speakr.sh
+## Architecture
 
-# Stop
-./stop-speakr.sh
+Three containers, all local:
 
-# Open http://localhost:8899
 ```
+Speakr (Flask app)  -->  WhisperX (speech-to-text + diarization)
+        |
+        +------------>  Ollama (LLM for summaries, titles, chat)
+```
+
+## Requirements
+
+- Docker and Docker Compose
+- 16+ GB RAM (WhisperX + Ollama + Qwen 7B)
+- HuggingFace token for pyannote diarization models (free, read-access)
+  - Get one at https://huggingface.co/settings/tokens
+  - Accept terms for `pyannote/speaker-diarization-3.1` and `pyannote/segmentation-3.0`
 
 ## Setup
 
-1. Copy `.env` from the upstream example and configure your API keys:
-   - `TRANSCRIPTION_API_KEY` — For speech-to-text (OpenAI) or set `ASR_BASE_URL` for self-hosted
-   - `TEXT_MODEL_API_KEY` — For summaries, titles, and chat
+1. Clone and enter the repo:
 
-2. Run with Docker:
-   ```bash
-   docker compose up -d
-   ```
+```
+git clone https://github.com/josesiqueira/speakr-url-import.git
+cd speakr-url-import
+```
 
-## Keeping Up to Date
+2. Copy and edit `.env`:
 
-```bash
-# Add upstream remote (once)
-git remote add upstream https://github.com/murtaza-nasir/speakr.git
+```
+cp .env.example .env
+```
 
-# Sync
+Set at minimum:
+- `HF_TOKEN` -- your HuggingFace token (required for speaker diarization)
+- `ADMIN_PASSWORD` -- admin login password
+
+The defaults use WhisperX for transcription and Ollama/Qwen for summarization. No external API keys needed.
+
+3. Build and start:
+
+```
+docker compose build
+docker compose up -d
+```
+
+4. Pull the summarization model (first time only, ~4.7 GB download):
+
+```
+docker exec ollama ollama pull qwen2.5:7b
+```
+
+5. Open `http://localhost:8899` and log in with your admin credentials.
+
+## Usage
+
+**Import from URL:** On the main page, paste a YouTube or video URL into the import field. The audio is downloaded, transcribed by WhisperX, and summarized by Ollama.
+
+**Choose a model:** Go to Account > Prompt Options. The "Summarization Model" dropdown lists all models pulled into Ollama. Select one and it takes effect on the next summarization.
+
+**Pull more models:** You can add any Ollama model and select it from the UI:
+
+```
+docker exec ollama ollama pull llama3.1:8b
+docker exec ollama ollama pull mistral:7b
+```
+
+## Helper scripts
+
+```
+./start-speakr.sh     # docker compose up -d
+./stop-speakr.sh      # docker compose down
+./sync-upstream.sh    # fetch + merge from upstream, push to your fork
+```
+
+## Admin settings
+
+The admin panel (`/admin`) has system settings. The ones most relevant for long recordings:
+
+| Setting | Default | Notes |
+|---|---|---|
+| Transcript Length Limit | 30000 | Characters sent to LLM. Set to `-1` for no limit. |
+| ASR Timeout | 1800s | Max time for transcription. Increase for long files on CPU. |
+| Max File Size | 250 MB | Max upload size. |
+| Default Summarization Prompt | Meeting-oriented | Edit to match your use case. |
+
+## GPU mode (optional)
+
+To run WhisperX on GPU, edit `docker-compose.yml`:
+
+```yaml
+whisperx:
+  environment:
+    - DEVICE=cuda
+    - COMPUTE_TYPE=float16
+    - BATCH_SIZE=16
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - capabilities: [gpu]
+```
+
+Requires NVIDIA GPU with 10+ GB VRAM and nvidia-container-toolkit installed.
+
+## Syncing with upstream
+
+This fork tracks the original Speakr repo. To pull in upstream changes:
+
+```
 ./sync-upstream.sh
 ```
 
-## Documentation
+Or manually:
 
-For all other features, configuration, admin guide, and troubleshooting, see the upstream documentation:
+```
+git fetch upstream
+git merge upstream/master
+git push origin master
+```
 
-**[murtaza-nasir.github.io/speakr](https://murtaza-nasir.github.io/speakr)**
+If there are conflicts, resolve them before committing.
 
 ## License
 
-This project is **dual-licensed**:
-
-1.  **GNU Affero General Public License v3.0 (AGPLv3)**
-    [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-
-    Speakr is offered under the AGPLv3 as its open-source license. You are free to use, modify, and distribute this software under the terms of the AGPLv3. A key condition of the AGPLv3 is that if you run a modified version on a network server and provide access to it for others, you must also make the source code of your modified version available to those users under the AGPLv3.
-
-    * You **must** create a file named `LICENSE` (or `COPYING`) in the root of your repository and paste the full text of the [GNU AGPLv3 license](https://www.gnu.org/licenses/agpl-3.0.txt) into it.
-    * Read the full license text carefully to understand your rights and obligations.
-
-2.  **Commercial License**
-
-    For users or organizations who cannot or do not wish to comply with the terms of the AGPLv3 (for example, if you want to integrate Speakr into a proprietary commercial product or service without being obligated to share your modifications under AGPLv3), a separate commercial license is available.
-
-    Please contact **speakr maintainers** for details on obtaining a commercial license.
-
-**You must choose one of these licenses** under which to use, modify, or distribute this software. If you are using or distributing the software without a commercial license agreement, you must adhere to the terms of the AGPLv3.
+Dual-licensed under [AGPLv3](https://www.gnu.org/licenses/agpl-3.0) and a commercial license. See the [upstream repo](https://github.com/murtaza-nasir/speakr) for full license terms.
