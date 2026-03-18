@@ -1113,17 +1113,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // Extract unique speakers in order of first appearance
                     const speakers = [...new Set(transcriptionData.map(segment => segment.speaker).filter(Boolean))];
 
-                    // Build stable color map: assign colors 1, 2, 3... based on order of first appearance
-                    // This map is stored and reused - colors never change once assigned
+                    // Build color map: read existing assignments, derive new ones without mutating reactive state
+                    const existingMap = speakerColorMap.value;
                     const speakerColors = {};
-                    speakers.forEach((speaker, index) => {
-                        // Use existing color if already mapped, otherwise assign next color
-                        if (speakerColorMap.value[speaker]) {
-                            speakerColors[speaker] = speakerColorMap.value[speaker];
+                    let nextIndex = Object.keys(existingMap).length;
+                    speakers.forEach((speaker) => {
+                        if (existingMap[speaker]) {
+                            speakerColors[speaker] = existingMap[speaker];
                         } else {
-                            const colorIndex = Object.keys(speakerColorMap.value).length;
-                            speakerColors[speaker] = `speaker-color-${(colorIndex % SPEAKER_COLOR_COUNT) + 1}`;
-                            speakerColorMap.value[speaker] = speakerColors[speaker];
+                            speakerColors[speaker] = `speaker-color-${(nextIndex % SPEAKER_COLOR_COUNT) + 1}`;
+                            nextIndex++;
                         }
                     });
 
@@ -1201,15 +1200,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
 
                     const speakerList = Array.from(speakers);
+                    const existingMap2 = speakerColorMap.value;
                     const speakerColors = {};
+                    let nextIndex2 = Object.keys(existingMap2).length;
                     speakerList.forEach((speaker) => {
-                        // Use existing color if already mapped, otherwise assign next color
-                        if (speakerColorMap.value[speaker]) {
-                            speakerColors[speaker] = speakerColorMap.value[speaker];
+                        if (existingMap2[speaker]) {
+                            speakerColors[speaker] = existingMap2[speaker];
                         } else {
-                            const colorIndex = Object.keys(speakerColorMap.value).length;
-                            speakerColors[speaker] = `speaker-color-${(colorIndex % SPEAKER_COLOR_COUNT) + 1}`;
-                            speakerColorMap.value[speaker] = speakerColors[speaker];
+                            speakerColors[speaker] = `speaker-color-${(nextIndex2 % SPEAKER_COLOR_COUNT) + 1}`;
+                            nextIndex2++;
                         }
                     });
 
@@ -1294,6 +1293,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                             color: speakerColors[speaker] || 'speaker-color-1'
                         }))
                     };
+                }
+            });
+
+            // Persist speaker color assignments outside the computed to avoid reactive mutation inside computed
+            watch(processedTranscription, (pt) => {
+                if (!pt?.simpleSegments?.length) return;
+                const updated = { ...speakerColorMap.value };
+                let changed = false;
+                for (const seg of pt.simpleSegments) {
+                    if (seg.speakerId && seg.color && !updated[seg.speakerId]) {
+                        updated[seg.speakerId] = seg.color;
+                        changed = true;
+                    }
+                }
+                if (changed) {
+                    speakerColorMap.value = updated;
                 }
             });
 

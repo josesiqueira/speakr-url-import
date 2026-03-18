@@ -1416,6 +1416,18 @@ export function useUI(state, utils, processedTranscription) {
         }
     };
 
+    const copySourceUrl = () => {
+        const url = selectedRecording.value?.source_url;
+        if (!url) return;
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(url)
+                .then(() => showToast(t('messages.copiedToClipboard')))
+                .catch(() => fallbackCopyTextToClipboard(url));
+        } else {
+            fallbackCopyTextToClipboard(url);
+        }
+    };
+
     // --- Download Functions ---
     const downloadSummary = async () => {
         if (!selectedRecording.value || !selectedRecording.value.summary) {
@@ -2040,6 +2052,7 @@ export function useUI(state, utils, processedTranscription) {
         copyTranscription,
         copySummary,
         copyNotes,
+        copySourceUrl,
         // Download functions
         downloadSummary,
         downloadTranscript,

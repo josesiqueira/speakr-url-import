@@ -217,7 +217,7 @@
                    :title="selectedRecording.source_url">
                     ${ selectedRecording.source_url.replace(/^https?:\/\/(www\.)?/, '') }
                 </a>
-                <button @click.stop="(() => { const text = selectedRecording.source_url; if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(() => showToast(t('messages.copiedToClipboard'))).catch(() => {}); } else { const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showToast(t('messages.copiedToClipboard')); } })()"
+                <button @click.stop="copySourceUrl"
                         class="text-[var(--text-muted)] hover:text-[var(--text-accent)] transition-colors"
                         title="Copy URL">
                     <i class="fas fa-copy text-xs"></i>
