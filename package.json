@@ -1,0 +1,27 @@
+{
+  "name": "speakr-url-import",
+  "version": "1.0.0",
+  "description": "Fork of [Speakr](https://github.com/murtaza-nasir/speakr) with URL import, local LLM summarization via Ollama, and provider management.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/josesiqueira/speakr-url-import.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/josesiqueira/speakr-url-import/issues"
+  },
+  "homepage": "https://github.com/josesiqueira/speakr-url-import#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
+  }
+}
