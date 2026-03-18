@@ -268,6 +268,10 @@ export function useUpload(state, utils) {
 
     // Actually proceed with the upload (after confirmation)
     const proceedWithUpload = () => {
+        // Ensure any confirmation/disclaimer modals are dismissed (belt-and-suspenders)
+        showUploadConfirmation.value = false;
+        showUploadDisclaimerModal.value = false;
+
         // Update all queued files with current tags and ASR options
         // AND change their status to 'ready' so they move to upload progress immediately
         for (const item of uploadQueue.value) {

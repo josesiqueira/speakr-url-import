@@ -1746,6 +1746,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Watch allJobs for completed/failed transitions - update local recordings state
             watch(allJobs, async (jobs) => {
+                // If no active jobs remain, dismiss any stuck confirmation modal
+                const hasActive = jobs.some(j => ['queued', 'processing'].includes(j.job_status));
+                if (!hasActive && !uploadQueue.value.some(item => item.status === 'queued')) {
+                    showUploadConfirmation.value = false;
+                }
+
                 for (const job of jobs) {
                     if (job.job_status === 'completed' && !completedRecordingIds.has(job.recording_id)) {
                         completedRecordingIds.add(job.recording_id);
@@ -2397,9 +2403,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const loader = document.getElementById('loader');
                 const appEl = document.getElementById('app');
                 if (loader) {
+                    // Immediately remove pointer events so the fading loader never blocks clicks
+                    loader.style.pointerEvents = 'none';
                     loader.style.opacity = '0';
                     setTimeout(() => {
-                        loader.style.display = 'none';
+                        loader.remove();
                     }, 500);
                 }
                 if (appEl) {
