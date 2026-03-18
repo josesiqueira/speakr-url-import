@@ -228,6 +228,20 @@ def generate_title_task(app_context, recording_id, will_auto_summarize=False):
             if naming_template:
                 current_app.logger.info(f"Using user's default naming template '{naming_template.name}' for recording {recording_id}")
 
+        # For URL imports, preserve the original video title instead of generating one
+        if recording.source_url and recording.title:
+            # Strip the "Recording - " prefix added during import to get the original video title
+            original_title = recording.title
+            if original_title.startswith('Recording - '):
+                original_title = original_title[len('Recording - '):]
+            if original_title and original_title != 'URL Import':
+                recording.title = original_title
+                current_app.logger.info(f"Preserved URL import title for recording {recording_id}: '{original_title}'")
+                if not will_auto_summarize:
+                    recording.status = 'COMPLETED'
+                db.session.commit()
+                return
+
         # Check if we need to generate AI title
         needs_ai_title = naming_template is None or naming_template.needs_ai_title()
 
